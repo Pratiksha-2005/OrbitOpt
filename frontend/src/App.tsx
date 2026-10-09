@@ -26,6 +26,7 @@ import { OperationalCards } from './components/dashboard/OperationalCards';
 import { QuickActions } from './components/dashboard/QuickActions';
 import { ScheduleTimeline } from './components/timeline/ScheduleTimeline';
 import { AlgorithmComparison } from './components/comparison/AlgorithmComparison';
+import { InteractiveOrbitalSimulator } from './components/dashboard/InteractiveOrbitalSimulator';
 import { PassList } from './components/passes/PassList';
 import { GroundStationsView } from './components/stations/GroundStationsView';
 import { LoadingState } from './components/common/LoadingState';
@@ -46,7 +47,7 @@ export const App: React.FC = () => {
   // Scenarios state
   const [datasets, setDatasets] = useState<Dataset[]>(MOCK_DATASETS);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>(
-    MOCK_DATASETS[0].dataset_id
+    'ds_priority_contention_benchmark'
   );
 
   // Active scenario object
@@ -341,6 +342,13 @@ export const App: React.FC = () => {
             <>
               {activeTab === 'dashboard' && (
                 <div className="space-y-6">
+                  {/* Premium Animated Hero */}
+                  <InteractiveOrbitalSimulator 
+                    activeDataset={activeDataset} 
+                    activeRun={activeRun} 
+                    onRunOptimizer={handleRunOptimizer}
+                  />
+
                   {/* Solver Parameter Controls & Actions */}
                   <QuickActions
                     onRunOptimizer={handleRunOptimizer}
