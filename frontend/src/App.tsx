@@ -165,6 +165,32 @@ export const App: React.FC = () => {
     }
   };
 
+  // Automatically refresh benchmark comparison when dataset selection changes
+  useEffect(() => {
+    let ignore = false;
+    const runForDataset = async () => {
+      if (!activeDataset) return;
+      try {
+        if (isBackendConnected) {
+          const datasetId = await ensureDatasetOnBackend(activeDataset);
+          const bResult = await runBaseline(datasetId, setupTimeSeconds);
+          const oResult = await runOptimize(datasetId, timeLimitSeconds);
+          if (!ignore) {
+            setBaselineRun(bResult);
+            setOptimizedRun(oResult);
+            setActiveRun(oResult);
+          }
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    };
+    runForDataset();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDatasetId, isBackendConnected, setupTimeSeconds, timeLimitSeconds]);
+
   /**
    * Execute Baseline FCFS Scheduling
    */
