@@ -86,3 +86,15 @@ class ScheduleResult(BaseModel):
     solver_status: SolverStatus
     is_valid: bool
     validation_errors: List[str] = Field(default_factory=list)
+
+    @property
+    def total_data_transmitted_mb(self) -> float:
+        return sum(t.data_transmitted_mb for t in self.scheduled_tasks)
+        
+    @property
+    def selected_count(self) -> int:
+        return len(self.scheduled_tasks)
+        
+    @property
+    def rejected_count(self) -> int:
+        return len(self.rejected_request_ids)
