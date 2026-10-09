@@ -26,6 +26,36 @@ class Rescheduler:
         self.current_schedule = current_schedule
         self.evaluation_time = evaluation_time or datetime.now(timezone.utc)
         
+    def _create_rollback_result(self, status: SolverStatus, errors: List[str], runtime: float) -> ScheduleResult:
+        total_objective = 0.0
+        req_dict = {r.id: r for r in self.requests}
+        scheduled_req_ids = {t.request_id for t in self.current_schedule}
+        
+        from scheduler.priority import get_dynamic_score
+        for t in self.current_schedule:
+            req = req_dict.get(t.request_id)
+            if req:
+                dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                if req.verified_emergency:
+                    total_priority = 100_000_000_000.0
+                else:
+                    total_priority = req.priority.value * 1000.0 + dynamic_score
+                coeff = int(round(total_priority * req.data_volume_mb))
+                total_objective += coeff
+                
+        all_rejected_ids = [r.id for r in self.requests if r.id not in scheduled_req_ids]
+        
+        return ScheduleResult(
+            id=f"reschedule-rollback-{uuid.uuid4().hex[:8]}",
+            scheduled_tasks=self.current_schedule,
+            rejected_request_ids=all_rejected_ids,
+            objective_value=float(total_objective),
+            runtime_seconds=runtime,
+            solver_status=status,
+            is_valid=False if errors else True,
+            validation_errors=errors
+        )
+
     def reschedule(self) -> ScheduleResult:
         fixed_tasks = []
         fixed_req_ids = set()
@@ -54,6 +84,13 @@ class Rescheduler:
         
         result = optimizer.schedule()
         
+        if result.solver_status in (SolverStatus.INFEASIBLE, SolverStatus.UNKNOWN, SolverStatus.MODEL_INVALID):
+            return self._create_rollback_result(
+                status=result.solver_status,
+                errors=["Optimization failed or timed out. Rolled back."],
+                runtime=result.runtime_seconds
+            )
+        
         # 4. Revalidate combined schedule
         combined_tasks = fixed_tasks + result.scheduled_tasks
         
@@ -64,24 +101,26 @@ class Rescheduler:
         
         # 5. Handle safely
         if errors:
-            return ScheduleResult(
-                id=f"reschedule-invalid-{uuid.uuid4().hex[:8]}",
-                scheduled_tasks=self.current_schedule, # Roll back to last valid
-                rejected_request_ids=[],
-                objective_value=0.0,
-                runtime_seconds=result.runtime_seconds,
-                solver_status=SolverStatus.MODEL_INVALID,
-                is_valid=False,
-                validation_errors=errors
+            return self._create_rollback_result(
+                status=SolverStatus.MODEL_INVALID,
+                errors=errors,
+                runtime=result.runtime_seconds
             )
             
         # Success: Calculate total objective
         total_objective = 0.0
         req_dict = {r.id: r for r in self.requests}
+        from scheduler.priority import get_dynamic_score
         for t in combined_tasks:
             req = req_dict.get(t.request_id)
             if req:
-                total_objective += req.data_volume_mb * req.priority.value
+                dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                if req.verified_emergency:
+                    total_priority = 100_000_000_000.0
+                else:
+                    total_priority = req.priority.value * 1000.0 + dynamic_score
+                coeff = int(round(total_priority * req.data_volume_mb))
+                total_objective += coeff
                 
         # Any request not in combined_tasks is rejected
         scheduled_req_ids = {t.request_id for t in combined_tasks}

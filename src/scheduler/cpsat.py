@@ -95,6 +95,15 @@ class CPSATScheduler:
                 intervals_by_sat[req.satellite_id].append(interval)
             elif w:
                 intervals_by_sat[w.satellite_id].append(interval)
+                
+        # Add GS outages to NoOverlap constraints
+        for gs in self.ground_stations.values():
+            for outage in gs.outages:
+                s_int = self._datetime_to_int(outage.start_time)
+                e_int = self._datetime_to_int(outage.end_time)
+                outage_id = uuid.uuid4().hex[:8]
+                interval = model.NewIntervalVar(s_int, e_int - s_int, e_int, f'outage_{gs.id}_{outage_id}')
+                intervals_by_gs[gs.id].append(interval)
         
         from scheduler.priority import get_dynamic_score
         
@@ -112,9 +121,11 @@ class CPSATScheduler:
                 # Duration in seconds (conservative integer rounding up to never shorten duration)
                 duration_sec = math.ceil((req.data_volume_mb * 8) / gs.downlink_rate_mbps)
                 
-                # Time bounds
+                # Time bounds and Deadline
                 w_start_sec = self._datetime_to_int(w.start_time)
                 w_end_sec = self._datetime_to_int(w.end_time)
+                if req.deadline:
+                    w_end_sec = min(w_end_sec, self._datetime_to_int(req.deadline))
                 
                 if w_end_sec - w_start_sec < duration_sec:
                     continue # Impossible to fit
@@ -203,7 +214,16 @@ class CPSATScheduler:
                             data_transmitted_mb=req.data_volume_mb
                         )
                         scheduled_tasks.append(task)
-                        actual_objective += req.data_volume_mb * req.priority.value
+                        
+                        dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                        if req.verified_emergency:
+                            total_priority = 100_000_000_000.0
+                        else:
+                            total_priority = req.priority.value * 1000.0 + dynamic_score
+                            
+                        coeff = int(round(total_priority * req.data_volume_mb))
+                        actual_objective += coeff
+                        
                         scheduled = True
                         break # scheduled at most once
                 

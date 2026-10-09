@@ -58,9 +58,16 @@ class ScheduleValidator:
             if req.satellite_id != window.satellite_id:
                 errors.append(f"Task {task.id}: Request satellite {req.satellite_id} does not match Window satellite {window.satellite_id}")
                 
-            # 3. Time bounds
+            # 3. Time bounds & Deadlines
             if task.start_time < window.start_time or task.end_time > window.end_time:
                 errors.append(f"Task {task.id} is scheduled outside its visibility window {window.id}")
+            if req.deadline and task.end_time > req.deadline:
+                errors.append(f"Task {task.id} end time exceeds request deadline {req.deadline}")
+                
+            # GS Outages
+            for outage in gs.outages:
+                if task.start_time < outage.end_time and task.end_time > outage.start_time:
+                    errors.append(f"Task {task.id} overlaps with an outage on ground station {gs.id}")
                 
             # 4. Duration & Data Volume MVP
             # Using 1e-5 as a documented small floating-point tolerance

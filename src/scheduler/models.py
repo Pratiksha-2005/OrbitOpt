@@ -50,6 +50,7 @@ class GroundStation(BaseModel):
     id: str = Field(..., min_length=1)
     name: str
     downlink_rate_mbps: float = Field(..., gt=0.0)
+    outages: List[TimeWindow] = Field(default_factory=list)
 
 class VisibilityWindow(TimeWindow):
     id: str = Field(..., min_length=1)
@@ -64,6 +65,7 @@ class DownlinkRequest(BaseModel):
     
     # Phase 5: Dynamic Priority Factors (Backward compatible defaults)
     created_at: datetime | None = None
+    deadline: datetime | None = None
     emergency_severity: float = Field(0.0, ge=0.0, le=100.0)
     deadline_urgency: float = Field(0.0, ge=0.0, le=100.0)
     data_freshness: float = Field(0.0, ge=0.0, le=100.0)

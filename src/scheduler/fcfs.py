@@ -107,6 +107,9 @@ class FCFSScheduler:
                 for t in self.sat_tasks[req.satellite_id]:
                     if w.start_time <= t.end_time <= w.end_time:
                         potential_starts.append(t.end_time)
+                for out in gs.outages:
+                    if w.start_time <= out.end_time <= w.end_time:
+                        potential_starts.append(out.end_time)
                         
                 potential_starts.sort()
                 
@@ -116,10 +119,21 @@ class FCFSScheduler:
                     if t_end > w.end_time:
                         continue # Does not fit in window bounds
                         
+                    if req.deadline and t_end > req.deadline:
+                        continue # Does not fit before deadline
+                        
                     # Check for overlaps (exact adjacency is allowed by _is_overlap logic)
                     if self._is_overlap(t_start, t_end, self.gs_tasks[w.ground_station_id]):
                         continue
                     if self._is_overlap(t_start, t_end, self.sat_tasks[req.satellite_id]):
+                        continue
+                    
+                    overlap_outage = False
+                    for out in gs.outages:
+                        if max(t_start, out.start_time) < min(t_end, out.end_time):
+                            overlap_outage = True
+                            break
+                    if overlap_outage:
                         continue
                         
                     # Found a valid slot
