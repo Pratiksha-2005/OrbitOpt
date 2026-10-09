@@ -201,3 +201,22 @@ async def test_mock_scheduler_objective_prioritization() -> None:
     assert len(result.scheduled_passes) == 1
     assert result.scheduled_passes[0].pass_id == "PASS-HIGH"
     assert result.metrics.objective_value == 500.0
+
+
+@pytest.mark.asyncio
+async def test_dataset_service_list_and_not_found(db_session) -> None:
+    """Verify DatasetService handles list operations and missing dataset queries."""
+    from app.services.dataset_service import DatasetService
+    from app.core.errors import ResourceNotFoundError
+
+    svc = DatasetService(db_session)
+    # 1. Non-existent dataset throws ResourceNotFoundError
+    with pytest.raises(ResourceNotFoundError) as exc_info:
+        await svc.get_dataset("ds_non_existent_12345")
+    assert "ds_non_existent_12345" in str(exc_info.value)
+    assert exc_info.value.status_code == 404
+
+    # 2. List returns empty list initially
+    datasets = await svc.list_datasets()
+    assert isinstance(datasets, list)
+
