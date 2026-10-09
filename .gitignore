@@ -59,3 +59,6 @@ Thumbs.db
 node_modules/
 dist/
 .vite/
+
+# External Benchmark Datasets (SatNet NASA DSN)
+datasets/

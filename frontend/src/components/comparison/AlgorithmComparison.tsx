@@ -81,10 +81,10 @@ export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-emerald-400 font-mono">
-              +{dataDeltaGb > 0 ? dataDeltaGb.toFixed(1) : '0.0'} GB
+              {dataDeltaGb >= 0 ? `+${dataDeltaGb.toFixed(1)}` : dataDeltaGb.toFixed(1)} GB
             </span>
             <span className="text-xs text-emerald-400 font-semibold font-mono">
-              (+{dataDeltaPct}%)
+              ({dataDeltaGb >= 0 ? `+${dataDeltaPct}` : dataDeltaPct}%)
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-2">
@@ -104,10 +104,10 @@ export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-purple-300 font-mono">
-              +{objDelta > 0 ? objDelta.toFixed(1) : '0.0'}
+              {objDelta >= 0 ? `+${objDelta.toFixed(1)}` : objDelta.toFixed(1)}
             </span>
             <span className="text-xs text-purple-400 font-semibold font-mono">
-              (+{objDeltaPct}%)
+              ({objDelta >= 0 ? `+${objDeltaPct}` : objDeltaPct}%)
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-2">
