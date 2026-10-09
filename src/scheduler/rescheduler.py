@@ -1,4 +1,5 @@
 import uuid
+import math
 from typing import List
 from datetime import datetime, timezone
 
@@ -31,16 +32,19 @@ class Rescheduler:
         req_dict = {r.id: r for r in self.requests}
         scheduled_req_ids = {t.request_id for t in self.current_schedule}
         
-        from scheduler.priority import get_dynamic_score
+        from scheduler.priority import get_base_coefficient, get_emergency_bonus, validate_objective_bounds
+        
+        validate_objective_bounds(self.requests)
+        emergency_bonus = get_emergency_bonus(self.requests)
+        
         for t in self.current_schedule:
             req = req_dict.get(t.request_id)
             if req:
-                dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                base_coeff = get_base_coefficient(req, self.evaluation_time)
                 if req.verified_emergency:
-                    total_priority = 100_000_000_000.0
+                    coeff = emergency_bonus + base_coeff
                 else:
-                    total_priority = req.priority.value * 1000.0 + dynamic_score
-                coeff = int(round(total_priority * req.data_volume_mb))
+                    coeff = base_coeff
                 total_objective += coeff
                 
         all_rejected_ids = [r.id for r in self.requests if r.id not in scheduled_req_ids]
@@ -82,8 +86,15 @@ class Rescheduler:
             evaluation_time=self.evaluation_time
         )
         
-        result = optimizer.schedule()
-        
+        try:
+            result = optimizer.schedule()
+        except Exception as e:
+            return self._create_rollback_result(
+                status=SolverStatus.UNKNOWN,
+                errors=[f"Optimization threw an exception: {str(e)}"],
+                runtime=0.0
+            )
+            
         if result.solver_status in (SolverStatus.INFEASIBLE, SolverStatus.UNKNOWN, SolverStatus.MODEL_INVALID):
             return self._create_rollback_result(
                 status=result.solver_status,
@@ -110,16 +121,19 @@ class Rescheduler:
         # Success: Calculate total objective
         total_objective = 0.0
         req_dict = {r.id: r for r in self.requests}
-        from scheduler.priority import get_dynamic_score
+        from scheduler.priority import get_base_coefficient, get_emergency_bonus, validate_objective_bounds
+        
+        validate_objective_bounds(self.requests)
+        emergency_bonus = get_emergency_bonus(self.requests)
+        
         for t in combined_tasks:
             req = req_dict.get(t.request_id)
             if req:
-                dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                base_coeff = get_base_coefficient(req, self.evaluation_time)
                 if req.verified_emergency:
-                    total_priority = 100_000_000_000.0
+                    coeff = emergency_bonus + base_coeff
                 else:
-                    total_priority = req.priority.value * 1000.0 + dynamic_score
-                coeff = int(round(total_priority * req.data_volume_mb))
+                    coeff = base_coeff
                 total_objective += coeff
                 
         # Any request not in combined_tasks is rejected

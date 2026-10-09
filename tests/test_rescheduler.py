@@ -82,3 +82,49 @@ def test_reschedule_invalid_rollback(base_scenario):
     assert not res.is_valid
     # Rolled back to original
     assert res.scheduled_tasks == base_scenario["schedule"]
+
+def test_reschedule_exception_rollback(base_scenario, monkeypatch):
+    t0 = base_scenario["t0"]
+    t_eval = t0 - timedelta(hours=1)
+    
+    rescheduler = Rescheduler(
+        satellites=base_scenario["satellites"],
+        ground_stations=base_scenario["ground_stations"],
+        windows=base_scenario["windows"],
+        requests=base_scenario["requests"],
+        current_schedule=base_scenario["schedule"],
+        evaluation_time=t_eval
+    )
+    
+    # Mock optimizer to raise exception
+    def mock_schedule(*args, **kwargs):
+        raise RuntimeError("Mocked Solver Crash")
+        
+    import scheduler.rescheduler
+    monkeypatch.setattr(scheduler.rescheduler.CPSATScheduler, "schedule", mock_schedule)
+    
+    res = rescheduler.reschedule()
+    
+    assert res.is_valid is False # The optimization attempt failed
+    assert res.scheduled_tasks == base_scenario["schedule"]
+    assert res.solver_status == scheduler.models.SolverStatus.UNKNOWN
+    assert any("Mocked Solver Crash" in e for e in res.validation_errors)
+
+def test_reschedule_objective_bound_validation(base_scenario):
+    t0 = base_scenario["t0"]
+    r_massive = DownlinkRequest(id="r_massive", satellite_id="sat-1", data_volume_mb=3e15, priority=Priority.CRITICAL)
+    
+    rescheduler = Rescheduler(
+        satellites=base_scenario["satellites"],
+        ground_stations=base_scenario["ground_stations"],
+        windows=base_scenario["windows"],
+        requests=[r_massive],
+        current_schedule=[],
+        evaluation_time=t0
+    )
+    
+    # The rescheduler should hard-crash and raise ValueError because the rollback itself 
+    # refuses to calculate an invalid objective bound.
+    import pytest
+    with pytest.raises(ValueError, match="exceeds CP-SAT 64-bit signed integer limit"):
+        rescheduler.reschedule()

@@ -105,7 +105,12 @@ class CPSATScheduler:
                 interval = model.NewIntervalVar(s_int, e_int - s_int, e_int, f'outage_{gs.id}_{outage_id}')
                 intervals_by_gs[gs.id].append(interval)
         
-        from scheduler.priority import get_dynamic_score
+        from scheduler.priority import get_base_coefficient, get_emergency_bonus, validate_objective_bounds
+        
+        validate_objective_bounds(self.raw_requests)
+        
+        # Determine strict mathematical bound for emergency priority (Lexicographic)
+        emergency_bonus = get_emergency_bonus(self.raw_requests)
         
         for req in self.raw_requests:
             eligible_windows = self._get_eligible_windows(req)
@@ -144,20 +149,15 @@ class CPSATScheduler:
                 end_vars[(req.id, w.id)] = e
                 r_x_vars.append(x)
                 
-                # Objective coefficient: combine base priority and dynamic score.
-                dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                # Base coefficient prioritizes high throughput within tiers.
+                base_coeff = get_base_coefficient(req, self.evaluation_time)
                 
                 if req.verified_emergency:
-                    # To outrank ANY normal request, we use a massive multiplier.
-                    # Max normal score = ~4100. Max realistic data = 1e6 MB. 
-                    # 1e11 multiplier ensures even 1MB of emergency data beats 20,000,000 MB of critical data.
-                    total_priority = 100_000_000_000.0
+                    # The additive bonus enforces strict lexicographic precedence.
+                    coeff = emergency_bonus + base_coeff
                 else:
-                    # Base priority (1-4) is multiplied by 1000 so it dominates, dynamic score (0-100) acts as tie-breaker.
-                    total_priority = req.priority.value * 1000.0 + dynamic_score
+                    coeff = base_coeff
                     
-                # Multiply by data_volume_mb to prioritize high throughput within tiers.
-                coeff = int(round(total_priority * req.data_volume_mb))
                 objective_terms.append(x * coeff)
                 
             if r_x_vars:
@@ -215,13 +215,12 @@ class CPSATScheduler:
                         )
                         scheduled_tasks.append(task)
                         
-                        dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                        base_coeff = get_base_coefficient(req, self.evaluation_time)
                         if req.verified_emergency:
-                            total_priority = 100_000_000_000.0
+                            coeff = emergency_bonus + base_coeff
                         else:
-                            total_priority = req.priority.value * 1000.0 + dynamic_score
+                            coeff = base_coeff
                             
-                        coeff = int(round(total_priority * req.data_volume_mb))
                         actual_objective += coeff
                         
                         scheduled = True
