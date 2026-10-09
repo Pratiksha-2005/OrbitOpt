@@ -13,7 +13,8 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.errors import OrbitOptException
 from app.db.base import Base
-from app.db.session import async_engine
+from app.db.seeder import seed_standard_datasets
+from app.db.session import async_engine, AsyncSessionLocal
 from app.schemas.common import HealthResponse
 
 settings = get_settings()
@@ -25,6 +26,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Create tables automatically for sqlite/dev setups
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    
+    # Seed standard benchmark datasets
+    async with AsyncSessionLocal() as session:
+        await seed_standard_datasets(session)
+
     yield
     # Cleanup / dispose engine connection pool
     await async_engine.dispose()

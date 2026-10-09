@@ -81,7 +81,7 @@ export const App: React.FC = () => {
       const summaries = await listDatasets();
       if (summaries.length > 0) {
         const fullDatasets: Dataset[] = [];
-        for (const s of summaries.slice(0, 5)) {
+        for (const s of summaries.slice(0, 10)) {
           try {
             const full = await getDataset(s.dataset_id);
             fullDatasets.push(full);
@@ -90,12 +90,11 @@ export const App: React.FC = () => {
           }
         }
         if (fullDatasets.length > 0) {
-          setDatasets((prev) => {
-            const existingIds = new Set(fullDatasets.map((d) => d.dataset_id));
-            const remainingMocks = prev.filter((d) => !existingIds.has(d.dataset_id));
-            return [...fullDatasets, ...remainingMocks];
+          setDatasets(fullDatasets);
+          setSelectedDatasetId((prev) => {
+            const found = fullDatasets.some((d) => d.dataset_id === prev);
+            return found ? prev : fullDatasets[0].dataset_id;
           });
-          setSelectedDatasetId(fullDatasets[0].dataset_id);
         }
       }
     } catch {
@@ -154,8 +153,9 @@ export const App: React.FC = () => {
       await getDataset(dataset.dataset_id);
       return dataset.dataset_id;
     } catch {
-      // Auto-register scenario on backend
+      // Auto-register scenario on backend with explicit dataset_id
       const created = await createDataset({
+        dataset_id: dataset.dataset_id,
         name: dataset.name,
         description: dataset.description,
         ground_stations: dataset.ground_stations,
@@ -403,6 +403,11 @@ export const App: React.FC = () => {
                   optimizedRun={optimizedRun || MOCK_OPTIMIZED_RUN}
                   onRerunComparison={handleRunComparison}
                   isLoading={isLoading}
+                  activeDatasetName={activeDataset.name}
+                  datasets={datasets}
+                  selectedDatasetId={selectedDatasetId}
+                  onSelectDatasetId={setSelectedDatasetId}
+                  isBackendConnected={isBackendConnected}
                 />
               )}
 
