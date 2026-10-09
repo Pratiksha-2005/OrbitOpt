@@ -64,7 +64,29 @@ def test_cpsat_competing_requests(base_scenario):
     assert len(result.scheduled_tasks) == 1
     assert result.scheduled_tasks[0].request_id == "r2"
     assert "r1" in result.rejected_request_ids
-    assert result.objective_value == 50.0 * Priority.HIGH.value
+
+def test_cpsat_emergency_outranks_normal(base_scenario):
+    t0 = base_scenario["t0"]
+    # 40s window
+    w1 = VisibilityWindow(id="w1", satellite_id="sat-1", ground_station_id="gs-1", start_time=t0, end_time=t0+timedelta(seconds=40))
+    
+    # r_normal: CRITICAL, 50MB (needs 40s)
+    r_normal = DownlinkRequest(id="r_normal", satellite_id="sat-1", data_volume_mb=50.0, priority=Priority.CRITICAL)
+    # r_emergency: LOW, 5MB (needs 4s), but verified_emergency=True
+    r_emergency = DownlinkRequest(id="r_emergency", satellite_id="sat-1", data_volume_mb=5.0, priority=Priority.LOW, verified_emergency=True)
+    
+    # Only one can fit. The tiny emergency task should completely dwarf the massive critical normal task.
+    scheduler = CPSATScheduler(
+        satellites=base_scenario["satellites"],
+        ground_stations=base_scenario["ground_stations"],
+        windows=[w1],
+        requests=[r_normal, r_emergency]
+    )
+    result = scheduler.schedule()
+    
+    assert result.is_valid
+    assert len(result.scheduled_tasks) == 1
+    assert result.scheduled_tasks[0].request_id == "r_emergency"
 
 def test_cpsat_compare_fcfs(base_scenario):
     t0 = base_scenario["t0"]

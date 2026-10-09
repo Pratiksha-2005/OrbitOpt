@@ -19,7 +19,9 @@ class CPSATScheduler:
         ground_stations: List[GroundStation],
         windows: List[VisibilityWindow],
         requests: List[DownlinkRequest],
-        time_limit_sec: float = 60.0
+        fixed_tasks: List[ScheduledTask] | None = None,
+        time_limit_sec: float = 60.0,
+        evaluation_time: datetime | None = None
     ):
         self.satellites = {s.id: s for s in satellites}
         self.ground_stations = {gs.id: gs for gs in ground_stations}
@@ -32,7 +34,9 @@ class CPSATScheduler:
         self.raw_windows = windows
         self.raw_requests = list(self.requests.values())
         
+        self.fixed_tasks = fixed_tasks or []
         self.time_limit_sec = time_limit_sec
+        self.evaluation_time = evaluation_time or datetime.now(timezone.utc)
         
     def _get_eligible_windows(self, request: DownlinkRequest) -> List[VisibilityWindow]:
         eligible = []
@@ -76,6 +80,24 @@ class CPSATScheduler:
         rejected_request_ids = []
         objective_terms = []
         
+        # Add fixed tasks to NoOverlap constraints
+        for ft in self.fixed_tasks:
+            s_int = self._datetime_to_int(ft.start_time)
+            e_int = self._datetime_to_int(ft.end_time)
+            interval = model.NewIntervalVar(s_int, e_int - s_int, e_int, f'fixed_{ft.id}')
+            
+            w = self.windows.get(ft.visibility_window_id)
+            if w:
+                intervals_by_gs[w.ground_station_id].append(interval)
+            
+            req = self.requests.get(ft.request_id)
+            if req:
+                intervals_by_sat[req.satellite_id].append(interval)
+            elif w:
+                intervals_by_sat[w.satellite_id].append(interval)
+        
+        from scheduler.priority import get_dynamic_score
+        
         for req in self.raw_requests:
             eligible_windows = self._get_eligible_windows(req)
             if not eligible_windows:
@@ -111,9 +133,20 @@ class CPSATScheduler:
                 end_vars[(req.id, w.id)] = e
                 r_x_vars.append(x)
                 
-                # Objective coefficient mapping: priority * data_volume_mb (scale by 10 to keep integer, avoid float issues)
-                # This ensures higher priority/larger data gets scheduled if conflicts exist.
-                coeff = int(round(req.priority.value * req.data_volume_mb * 10))
+                # Objective coefficient: combine base priority and dynamic score.
+                dynamic_score = get_dynamic_score(req, self.evaluation_time)
+                
+                if req.verified_emergency:
+                    # To outrank ANY normal request, we use a massive multiplier.
+                    # Max normal score = ~4100. Max realistic data = 1e6 MB. 
+                    # 1e11 multiplier ensures even 1MB of emergency data beats 20,000,000 MB of critical data.
+                    total_priority = 100_000_000_000.0
+                else:
+                    # Base priority (1-4) is multiplied by 1000 so it dominates, dynamic score (0-100) acts as tie-breaker.
+                    total_priority = req.priority.value * 1000.0 + dynamic_score
+                    
+                # Multiply by data_volume_mb to prioritize high throughput within tiers.
+                coeff = int(round(total_priority * req.data_volume_mb))
                 objective_terms.append(x * coeff)
                 
             if r_x_vars:
