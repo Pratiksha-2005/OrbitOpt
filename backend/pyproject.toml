@@ -7,7 +7,7 @@ name = "orbitopt-backend"
 version = "1.0.0"
 description = "Autonomous Ground Station Scheduling for Multi-Satellite Downlink"
 authors = [{ name = "OrbitOpt Team" }]
-readme = "README.md"
+# readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -37,3 +37,7 @@ pythonpath = ["app", "."]
 markers = [
     "dataset_dependent: mark test as requiring the external SatNet dataset",
 ]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "tests*", "venv*"]
