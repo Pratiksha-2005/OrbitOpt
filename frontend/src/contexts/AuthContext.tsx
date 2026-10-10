@@ -63,6 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return 'Sign-in popup was closed before completing.';
       case 'auth/network-request-failed':
         return 'Network error. Please check your connection.';
+      case 'auth/unauthorized-domain':
+        return 'This domain is not authorized for sign-in. Please add it in your Firebase Console under Authentication -> Settings -> Authorized domains.';
       default:
         return 'An unexpected authentication error occurred.';
     }
