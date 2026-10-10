@@ -1,0 +1,105 @@
+"""Developer 1 Domain Models for FCFS and CP-SAT scheduler."""
+
+from datetime import datetime, timezone
+from enum import Enum, IntEnum
+from typing import Dict, List, Optional
+from pydantic import BaseModel, Field, model_validator
+
+
+class Priority(IntEnum):
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
+
+
+class SolverStatus(str, Enum):
+    OPTIMAL = "OPTIMAL"
+    FEASIBLE = "FEASIBLE"
+    INFEASIBLE = "INFEASIBLE"
+    UNKNOWN = "UNKNOWN"
+    MODEL_INVALID = "MODEL_INVALID"
+
+
+def _validate_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        raise ValueError("Datetime must be timezone-aware")
+    if dt.tzinfo.utcoffset(dt).total_seconds() != 0:
+        raise ValueError("Datetime must be strictly in UTC")
+    return dt
+
+
+class TimeWindow(BaseModel):
+    start_time: datetime
+    end_time: datetime
+
+    @model_validator(mode="after")
+    def check_time_ordering_and_utc(self) -> "TimeWindow":
+        self.start_time = _validate_utc(self.start_time)
+        self.end_time = _validate_utc(self.end_time)
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be strictly greater than start_time")
+        return self
+
+
+class Satellite(BaseModel):
+    id: str = Field(..., min_length=1)
+    name: str
+
+
+class GroundStation(BaseModel):
+    """
+    Ground station details.
+    Rates are given in Megabits per second (Mbps).
+    Volumes are typically given in Megabytes (MB).
+    To calculate time from volume: (volume_mb * 8) / downlink_rate_mbps
+    """
+    id: str = Field(..., min_length=1)
+    name: str
+    downlink_rate_mbps: float = Field(..., gt=0.0)
+    outages: List[TimeWindow] = Field(default_factory=list)
+
+
+class VisibilityWindow(TimeWindow):
+    id: str = Field(..., min_length=1)
+    satellite_id: str = Field(..., min_length=1)
+    ground_station_id: str = Field(..., min_length=1)
+
+
+class DownlinkRequest(BaseModel):
+    id: str = Field(..., min_length=1)
+    satellite_id: str = Field(..., min_length=1)
+    data_volume_mb: float = Field(..., ge=0.0)
+    priority: Priority
+    created_at: Optional[datetime] = None
+    deadline: Optional[datetime] = None
+    data_generated_at: Optional[datetime] = None
+    is_emergency: bool = False
+    dynamic_score: Optional[float] = None
+    score_breakdown: Optional[dict] = None
+    is_locked: bool = False
+    execution_status: Optional[str] = None
+
+
+class ScheduledTask(TimeWindow):
+    id: str = Field(..., min_length=1)
+    request_id: str = Field(..., min_length=1)
+    visibility_window_id: str = Field(..., min_length=1)
+    data_transmitted_mb: float = Field(..., ge=0.0)
+    dynamic_score: Optional[float] = None
+    score_breakdown: Optional[dict] = None
+    is_locked: bool = False
+    execution_status: Optional[str] = None
+
+
+
+class ScheduleResult(BaseModel):
+    id: str = Field(..., min_length=1)
+    scheduled_tasks: List[ScheduledTask]
+    rejected_request_ids: List[str]
+    objective_value: float = Field(..., description="Priority-weighted data objective.")
+    runtime_seconds: float = Field(..., ge=0.0)
+    solver_status: SolverStatus
+    is_valid: bool
+    validation_errors: List[str] = Field(default_factory=list)
+    average_dynamic_score: Optional[float] = None
