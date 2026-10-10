@@ -23,10 +23,12 @@ from app.services.scheduler.models import (
     Priority,
     Satellite,
     ScheduleResult,
+    ScheduledTask,
     SolverStatus,
     TimeWindow,
     VisibilityWindow,
 )
+
 from app.services.scheduler.priority_scoring import (
     DynamicPriorityScorer,
     DynamicPriorityWeights,
@@ -46,11 +48,71 @@ def _ensure_utc(dt: datetime) -> datetime:
 class RealSchedulerEngine(BaseSchedulerEngine):
     """Production scheduler engine adapter wrapping Developer 1's FCFS and CP-SAT modules."""
 
+    def _extract_locked_tasks(
+        self,
+        dataset: DatasetRead,
+        locked_pass_ids: Optional[List[str]],
+        previous_schedule: Optional[ScheduleRunResponse],
+    ) -> List[ScheduledTask]:
+        locked_tasks: List[ScheduledTask] = []
+        if not locked_pass_ids:
+            return locked_tasks
+
+        pass_map = {p.pass_id: p for p in dataset.satellite_passes}
+        pass_rates = {gs.station_id: getattr(gs, "downlink_rate_mbps", 150.0) for gs in dataset.ground_stations}
+
+        def _calc_expected_mb(p) -> float:
+            duration_sec = (p.end_time - p.start_time).total_seconds()
+            rate = pass_rates.get(p.ground_station_id, 150.0)
+            max_channel_capacity_gb = (rate * duration_sec) / 8000.0
+            transferable_gb = min(p.data_volume_gb, max_channel_capacity_gb)
+            return round(transferable_gb * 1000.0, 4)
+
+        locked_set = set(locked_pass_ids)
+        if previous_schedule:
+            for sp in previous_schedule.scheduled_passes:
+                if sp.pass_id in locked_set:
+                    orig_p = pass_map.get(sp.pass_id)
+                    mb = _calc_expected_mb(orig_p) if orig_p else round(sp.data_volume_gb * 1000.0, 4)
+                    task = ScheduledTask(
+                        id=f"locked-{sp.pass_id}",
+                        request_id=sp.pass_id,
+                        visibility_window_id=sp.pass_id,
+                        start_time=_ensure_utc(sp.start_time),
+                        end_time=_ensure_utc(sp.end_time),
+                        data_transmitted_mb=mb,
+                        dynamic_score=sp.dynamic_score,
+                        is_locked=True,
+                        execution_status=getattr(sp, "execution_status", "ACQUIRING") or "ACQUIRING",
+                    )
+                    locked_tasks.append(task)
+                    locked_set.remove(sp.pass_id)
+
+        if locked_set:
+            for pid in locked_set:
+                if pid in pass_map:
+                    p = pass_map[pid]
+                    mb = _calc_expected_mb(p)
+                    task = ScheduledTask(
+                        id=f"locked-{p.pass_id}",
+                        request_id=p.pass_id,
+                        visibility_window_id=p.pass_id,
+                        start_time=_ensure_utc(p.start_time),
+                        end_time=_ensure_utc(p.end_time),
+                        data_transmitted_mb=mb,
+                        is_locked=True,
+                        execution_status="ACQUIRING",
+                    )
+                    locked_tasks.append(task)
+
+        return locked_tasks
+
     async def schedule_baseline(
         self,
         dataset: DatasetRead,
         request: BaselineScheduleRequest,
         outages_by_station: Optional[Dict[str, List[TimeWindow]]] = None,
+        locked_tasks: Optional[List[ScheduledTask]] = None,
     ) -> ScheduleRunResponse:
         """Execute Developer 1's real baseline FCFS scheduler with dynamic priority ordering."""
         scorer = self._create_scorer(getattr(request, "dynamic_weights", None))
@@ -65,6 +127,7 @@ class RealSchedulerEngine(BaseSchedulerEngine):
             windows=windows,
             requests=requests,
             setup_time_seconds=setup_time,
+            locked_tasks=locked_tasks,
         )
 
         result: ScheduleResult = scheduler.schedule()
@@ -80,6 +143,7 @@ class RealSchedulerEngine(BaseSchedulerEngine):
         dataset: DatasetRead,
         request: OptimizeScheduleRequest,
         outages_by_station: Optional[Dict[str, List[TimeWindow]]] = None,
+        locked_tasks: Optional[List[ScheduledTask]] = None,
     ) -> ScheduleRunResponse:
         """Execute Developer 1's real CP-SAT OR-Tools optimizer with dynamic multi-factor priority."""
         scorer = self._create_scorer(getattr(request, "dynamic_weights", None))
@@ -95,6 +159,7 @@ class RealSchedulerEngine(BaseSchedulerEngine):
             requests=requests,
             time_limit_sec=request.time_limit_seconds,
             setup_time_seconds=setup_time,
+            locked_tasks=locked_tasks,
         )
 
         result: ScheduleResult = scheduler.schedule()
@@ -115,7 +180,13 @@ class RealSchedulerEngine(BaseSchedulerEngine):
     ) -> ScheduleRunResponse:
         """Safe re-optimization: ensures active/completed tasks are protected and previous valid schedule is preserved upon solver/validation failure."""
         try:
-            candidate = await self.schedule_optimize(dataset, request, outages_by_station=outages_by_station)
+            locked_tasks = self._extract_locked_tasks(dataset, locked_pass_ids, previous_schedule)
+            candidate = await self.schedule_optimize(
+                dataset,
+                request,
+                outages_by_station=outages_by_station,
+                locked_tasks=locked_tasks,
+            )
             
             # If solver succeeded and validator confirmed schedule is valid, return candidate
             if candidate.status == ScheduleStatus.COMPLETED and candidate.is_valid:
@@ -138,6 +209,7 @@ class RealSchedulerEngine(BaseSchedulerEngine):
                 return fallback
 
             return candidate
+
 
         except Exception as exc:
             logger.error("Safe re-optimization encountered an error: %s", exc, exc_info=True)
@@ -275,8 +347,11 @@ class RealSchedulerEngine(BaseSchedulerEngine):
                     priority=orig_pass.priority,
                     dynamic_score=task.dynamic_score or (breakdown.get("combined_score") if breakdown else None),
                     score_breakdown=task.score_breakdown or breakdown,
+                    is_locked=getattr(task, "is_locked", False),
+                    execution_status=getattr(task, "execution_status", "SCHEDULED") or "SCHEDULED",
                 )
             )
+
 
         unassigned_passes: List[UnassignedPass] = []
         for rej_id in result.rejected_request_ids:

@@ -9,10 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  FileText,
 } from 'lucide-react';
 import type { Dataset } from '../../types/api';
 
-export type NavTab = 'dashboard' | 'timeline' | 'comparison' | 'passes' | 'stations';
+export type NavTab = 'dashboard' | 'timeline' | 'comparison' | 'passes' | 'stations' | 'reports';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -63,6 +64,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Ground Stations',
       icon: Radio,
       badge: undefined,
+    },
+    {
+      id: 'reports' as NavTab,
+      label: 'Mission Reports',
+      icon: FileText,
+      badge: 'Analytics',
     },
   ];
 

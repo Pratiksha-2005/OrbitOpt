@@ -14,7 +14,13 @@ import type {
   ScheduleMetrics,
   HealthCheckResponse,
   ApiErrorResponse,
+  PassExecutionRead,
+  PassTransitionRequest,
+  PassExecutionSummary,
+  OperationalAnalyticsResponse,
+  DeadlineRiskSummary,
 } from '../types/api';
+
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -165,6 +171,98 @@ export const resolveOutage = async (outageId: string, autoReoptimize = true) => 
   });
   return response.data;
 };
+
+/**
+ * List pass execution tracking records
+ */
+export const listExecutions = async (params?: {
+  dataset_id?: string;
+  schedule_run_id?: string;
+  status?: string;
+  is_locked?: boolean;
+}): Promise<PassExecutionRead[]> => {
+  const response = await apiClient.get<PassExecutionRead[]>('/executions', { params });
+  return response.data;
+};
+
+/**
+ * Get single pass execution record
+ */
+export const getExecution = async (passId: string): Promise<PassExecutionRead> => {
+  const response = await apiClient.get<PassExecutionRead>(`/executions/${passId}`);
+  return response.data;
+};
+
+/**
+ * Transition a pass to a new execution state
+ */
+export const transitionPassExecution = async (
+  passId: string,
+  req: PassTransitionRequest
+): Promise<PassExecutionRead> => {
+  const response = await apiClient.post<PassExecutionRead>(`/executions/${passId}/transition`, req);
+  return response.data;
+};
+
+/**
+ * Get execution summary metrics across a scenario
+ */
+export const getExecutionSummary = async (datasetId?: string): Promise<PassExecutionSummary> => {
+  const response = await apiClient.get<PassExecutionSummary>('/executions/summary', {
+    params: { dataset_id: datasetId },
+  });
+  return response.data;
+};
+
+/**
+ * Get comprehensive operational analytics for a schedule run
+ */
+export const getOperationalAnalytics = async (
+  runId: string
+): Promise<OperationalAnalyticsResponse> => {
+  const response = await apiClient.get<OperationalAnalyticsResponse>(`/analytics/runs/${runId}`);
+  return response.data;
+};
+
+/**
+ * Get deterministic rule-based deadline risk analysis for a schedule run
+ */
+export const getDeadlineRisks = async (
+  runId: string
+): Promise<DeadlineRiskSummary> => {
+  const response = await apiClient.get<DeadlineRiskSummary>(`/analytics/runs/${runId}/deadline-risks`);
+  return response.data;
+};
+
+/**
+ * Download real mission schedule report in CSV or JSON format
+ */
+export const downloadMissionReport = async (
+  runId: string,
+  format: 'json' | 'csv'
+): Promise<void> => {
+  const response = await apiClient.get(`/analytics/runs/${runId}/export`, {
+    params: { format },
+    responseType: format === 'csv' ? 'blob' : 'json',
+  });
+
+  const blob =
+    format === 'csv'
+      ? (response.data as Blob)
+      : new Blob([JSON.stringify(response.data, null, 2)], {
+          type: 'application/json',
+        });
+
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `mission_report_${runId}.${format}`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 
 /**
  * Helper to parse backend error details cleanly

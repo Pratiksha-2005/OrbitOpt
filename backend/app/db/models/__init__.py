@@ -6,6 +6,7 @@ from app.db.models.dataset import (
     GroundStationModel,
     SatellitePassModel,
 )
+from app.db.models.execution import PassExecutionModel
 from app.db.models.outage import OutageModel
 from app.db.models.schedule import (
     ScheduledAllocationModel,
@@ -17,7 +18,9 @@ __all__ = [
     "DatasetModel",
     "GroundStationModel",
     "OutageModel",
+    "PassExecutionModel",
     "SatellitePassModel",
     "ScheduleRunModel",
     "ScheduledAllocationModel",
 ]
+

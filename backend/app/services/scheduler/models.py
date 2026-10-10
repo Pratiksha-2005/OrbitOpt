@@ -77,6 +77,8 @@ class DownlinkRequest(BaseModel):
     is_emergency: bool = False
     dynamic_score: Optional[float] = None
     score_breakdown: Optional[dict] = None
+    is_locked: bool = False
+    execution_status: Optional[str] = None
 
 
 class ScheduledTask(TimeWindow):
@@ -86,6 +88,9 @@ class ScheduledTask(TimeWindow):
     data_transmitted_mb: float = Field(..., ge=0.0)
     dynamic_score: Optional[float] = None
     score_breakdown: Optional[dict] = None
+    is_locked: bool = False
+    execution_status: Optional[str] = None
+
 
 
 class ScheduleResult(BaseModel):

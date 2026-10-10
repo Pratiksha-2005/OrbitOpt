@@ -66,3 +66,16 @@ class InvalidOutageError(OrbitOptException):
             details=details,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
+
+
+class InvalidStateTransitionError(OrbitOptException):
+    """Raised when an execution state transition is illegal."""
+
+    def __init__(self, message: str, details: Optional[List[Dict[str, Any]]] = None) -> None:
+        super().__init__(
+            message=message,
+            error_code="INVALID_STATE_TRANSITION",
+            details=details,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+

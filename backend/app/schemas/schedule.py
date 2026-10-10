@@ -49,12 +49,41 @@ class ScheduledPass(OrbitOptBaseModel):
         default=None,
         description="Breakdown of individual factor scores (emergency, urgency, freshness, waiting) and rationale",
     )
+    execution_status: str = Field(
+        default="SCHEDULED",
+        description="Pass execution lifecycle status (SCHEDULED, ACQUIRING, TRANSMITTING, COMPLETED, MISSED, CANCELLED)",
+    )
+    is_locked: bool = Field(
+        default=False,
+        description="Whether pass is locked against ordinary re-optimization and emergency preemption",
+    )
+    actual_start_time: Optional[datetime] = Field(
+        default=None,
+        description="Actual execution start time in UTC",
+    )
+    actual_end_time: Optional[datetime] = Field(
+        default=None,
+        description="Actual execution end time in UTC",
+    )
+    actual_data_delivered_gb: Optional[float] = Field(
+        default=None,
+        description="Actual measured delivered data volume in GB",
+    )
+    measured_transfer_rate_mbps: Optional[float] = Field(
+        default=None,
+        description="Actual measured transfer rate in Mbps",
+    )
+    estimated_transfer_rate_mbps: Optional[float] = Field(
+        default=None,
+        description="Estimated transfer rate in Mbps",
+    )
 
     @model_validator(mode="after")
     def sync_transferable_data(self) -> "ScheduledPass":
         if self.transferable_data_gb is None:
-            self.transferable_data_gb = self.data_volume_gb
+            object.__setattr__(self, "transferable_data_gb", self.data_volume_gb)
         return self
+
 
 
 class UnassignedPass(OrbitOptBaseModel):

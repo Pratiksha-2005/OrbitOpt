@@ -30,6 +30,7 @@ class CPSATScheduler:
         requests: List[DownlinkRequest],
         time_limit_sec: float = 60.0,
         setup_time_seconds: int = 0,
+        locked_tasks: Optional[List[ScheduledTask]] = None,
     ):
         self.satellites = {s.id: s for s in satellites}
         self.ground_stations = {gs.id: gs for gs in ground_stations}
@@ -43,6 +44,8 @@ class CPSATScheduler:
         
         self.time_limit_sec = max(0.5, float(time_limit_sec))
         self.setup_time_seconds = max(0, int(setup_time_seconds))
+        self.locked_tasks = locked_tasks or []
+
         
     def _get_eligible_windows(self, request: DownlinkRequest) -> List[VisibilityWindow]:
         eligible = []
@@ -92,6 +95,41 @@ class CPSATScheduler:
                     s_int, outage_dur, e_int, f"outage_{gs.id}_{outage_id}"
                 )
                 intervals_by_gs[gs.id].append(outage_interval)
+
+        locked_req_ids = {lt.request_id for lt in self.locked_tasks}
+
+        # Add locked tasks as fixed intervals on ground station and satellite
+        for lt in self.locked_tasks:
+            win = self.windows.get(lt.visibility_window_id)
+            gs_id = win.ground_station_id if win else None
+            sat_id = win.satellite_id if win else None
+            if not sat_id and lt.request_id in self.requests:
+                sat_id = self.requests[lt.request_id].satellite_id
+
+            s_int = self._datetime_to_int(lt.start_time)
+            e_int = self._datetime_to_int(lt.end_time)
+            dur = e_int - s_int
+            if dur <= 0:
+                continue
+
+            if sat_id:
+                sat_interval = model.NewIntervalVar(
+                    s_int, dur, e_int, f"locked_sat_{lt.id}"
+                )
+                intervals_by_sat[sat_id].append(sat_interval)
+
+            if gs_id:
+                if self.setup_time_seconds > 0:
+                    gs_dur = dur + self.setup_time_seconds
+                    gs_interval = model.NewIntervalVar(
+                        s_int, gs_dur, s_int + gs_dur, f"locked_gs_{lt.id}"
+                    )
+                    intervals_by_gs[gs_id].append(gs_interval)
+                else:
+                    gs_interval = model.NewIntervalVar(
+                        s_int, dur, e_int, f"locked_gs_{lt.id}"
+                    )
+                    intervals_by_gs[gs_id].append(gs_interval)
         
         x_vars = {}       # (req_id, window_id) -> bool var
         start_vars = {}   # (req_id, window_id) -> int var
@@ -101,7 +139,12 @@ class CPSATScheduler:
         objective_terms = []
         
         for req in self.raw_requests:
+            if req.id in locked_req_ids:
+                # Locked tasks are already locked into fixed intervals and protected
+                continue
+
             eligible_windows = self._get_eligible_windows(req)
+
             if not eligible_windows:
                 rejected_request_ids.append(req.id)
                 continue
@@ -198,11 +241,19 @@ class CPSATScheduler:
         }
         status = status_map.get(status_code, SolverStatus.UNKNOWN)
         
-        scheduled_tasks: List[ScheduledTask] = []
+        scheduled_tasks: List[ScheduledTask] = list(self.locked_tasks)
         actual_objective = 0.0
+        for lt in self.locked_tasks:
+            req = self.requests.get(lt.request_id)
+            if req:
+                actual_objective += req.data_volume_mb * req.priority.value
+            else:
+                actual_objective += lt.data_transmitted_mb * 3.0
         
         if status_code in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             for req in self.raw_requests:
+                if req.id in locked_req_ids:
+                    continue
                 scheduled = False
                 for w in self._get_eligible_windows(req):
                     key = (req.id, w.id)
@@ -218,6 +269,8 @@ class CPSATScheduler:
                             end_time=self._int_to_datetime(e_val),
                             data_transmitted_mb=req.data_volume_mb,
                             dynamic_score=req.dynamic_score,
+                            is_locked=False,
+                            execution_status="SCHEDULED",
                         )
                         scheduled_tasks.append(task)
                         actual_objective += req.data_volume_mb * req.priority.value
@@ -228,7 +281,7 @@ class CPSATScheduler:
                     rejected_request_ids.append(req.id)
         else:
             for req in self.raw_requests:
-                if req.id not in rejected_request_ids:
+                if req.id not in locked_req_ids and req.id not in rejected_request_ids:
                     rejected_request_ids.append(req.id)
                     
         runtime = time.time() - start_runtime
@@ -240,7 +293,8 @@ class CPSATScheduler:
             self.raw_requests,
             setup_time_seconds=self.setup_time_seconds,
         )
-        errors = validator.validate(scheduled_tasks)
+        errors = validator.validate(scheduled_tasks, locked_request_ids=locked_req_ids)
+
         
         if errors:
             status = SolverStatus.MODEL_INVALID

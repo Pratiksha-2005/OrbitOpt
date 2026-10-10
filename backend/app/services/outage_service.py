@@ -19,6 +19,7 @@ from app.schemas.outage import (
 )
 from app.schemas.schedule import OptimizeScheduleRequest, ScheduleRunResponse
 from app.services.dataset_service import DatasetService
+from app.services.execution_service import ExecutionService
 from app.services.schedule_service import ScheduleService
 from app.services.scheduler.models import TimeWindow
 from app.services.scheduler_interface import BaseSchedulerEngine
@@ -46,6 +47,8 @@ class OutageService:
         self.scheduler_engine = scheduler_engine
         self.dataset_service = DatasetService(db)
         self.schedule_service = ScheduleService(db, scheduler_engine)
+        self.execution_service = ExecutionService(db)
+
 
     async def create_outage(self, payload: OutageCreate) -> OutageActionResponse:
         """Create a validated outage and trigger event-driven safe re-optimization."""
@@ -257,13 +260,15 @@ class OutageService:
                 except Exception:
                     pass
 
-            # Protect tasks that have already completed or started (eval_time)
-            eval_time = datetime.now(timezone.utc)
-            locked_pass_ids: List[str] = []
+            # Query real execution state machine for locked passes (ACQUIRING, TRANSMITTING, COMPLETED).
+            # Passes in SCHEDULED, MISSED, CANCELLED or unknown states are NOT locked.
+            # Passes are NOT locked merely because their start time is in the past if execution state is unknown.
+            locked_pass_ids = await self.execution_service.get_locked_pass_ids(dataset_id=dataset_id)
             if previous_schedule:
                 for sp in previous_schedule.scheduled_passes:
-                    if _ensure_utc(sp.start_time) <= eval_time:
-                        locked_pass_ids.append(sp.pass_id)
+                    if getattr(sp, "is_locked", False) or getattr(sp, "execution_status", "") in ("ACQUIRING", "TRANSMITTING", "COMPLETED"):
+                        if sp.pass_id not in locked_pass_ids:
+                            locked_pass_ids.append(sp.pass_id)
 
             req = OptimizeScheduleRequest(
                 dataset_id=dataset_id,
@@ -279,7 +284,7 @@ class OutageService:
                 outages_by_station=outages_by_station,
             )
 
-            # Persist run
+            # Persist run and sync execution lifecycle records
             await self.schedule_service._persist_run(
                 result,
                 parameters={
@@ -288,7 +293,9 @@ class OutageService:
                     "active_outages_count": len(active_outages),
                 },
             )
+            await self.execution_service.sync_executions_from_run(result)
             return result
+
 
         except Exception as exc:
             logger.error("Automatic safe re-optimization failed: %s", exc, exc_info=True)

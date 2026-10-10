@@ -1,8 +1,9 @@
 """Developer 1 Independent Schedule Validator with physical constraints and setup time enforcement."""
 
 from datetime import timedelta
-from typing import List
+from typing import List, Optional, Set
 from collections import defaultdict
+
 
 from app.services.scheduler.models import (
     Satellite,
@@ -30,12 +31,26 @@ class ScheduleValidator:
         self.requests = {r.id: r for r in requests}
         self.setup_time_seconds = max(0, setup_time_seconds)
 
-    def validate(self, tasks: List[ScheduledTask]) -> List[str]:
+    def validate(
+        self,
+        tasks: List[ScheduledTask],
+        locked_request_ids: Optional[Set[str]] = None,
+    ) -> List[str]:
         errors: List[str] = []
         seen_requests = set()
 
         tasks_by_gs = defaultdict(list)
         tasks_by_sat = defaultdict(list)
+
+        # Enforce that all locked requests remain scheduled
+        if locked_request_ids:
+            task_req_ids = {t.request_id for t in tasks}
+            for locked_id in locked_request_ids:
+                if locked_id not in task_req_ids:
+                    errors.append(
+                        f"Locked request {locked_id} was preempted or dropped from the schedule."
+                    )
+
 
         for task in tasks:
             req = self.requests.get(task.request_id)

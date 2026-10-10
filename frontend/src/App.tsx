@@ -29,6 +29,7 @@ import { AlgorithmComparison } from './components/comparison/AlgorithmComparison
 import { InteractiveOrbitalSimulator } from './components/dashboard/InteractiveOrbitalSimulator';
 import { PassList } from './components/passes/PassList';
 import { GroundStationsView } from './components/stations/GroundStationsView';
+import { MissionReportsView } from './components/analytics/MissionReportsView';
 import { LoadingState } from './components/common/LoadingState';
 import { ErrorAlert } from './components/common/ErrorAlert';
 
@@ -418,6 +419,7 @@ export const App: React.FC = () => {
                     <PassList
                       passes={activeDataset.satellite_passes.slice(0, 4)}
                       activeRun={activeRun}
+                      datasetId={activeDataset.dataset_id}
                     />
                   </div>
                 </div>
@@ -449,8 +451,10 @@ export const App: React.FC = () => {
                 <PassList
                   passes={activeDataset.satellite_passes}
                   activeRun={activeRun}
+                  datasetId={activeDataset.dataset_id}
                 />
               )}
+
 
               {activeTab === 'stations' && (
                 <GroundStationsView
@@ -461,6 +465,14 @@ export const App: React.FC = () => {
                     setActiveRun(run);
                     setOptimizedRun(run);
                   }}
+                />
+              )}
+
+              {activeTab === 'reports' && (
+                <MissionReportsView
+                  activeRun={activeRun}
+                  datasetId={activeDataset.dataset_id}
+                  isBackendConnected={isBackendConnected}
                 />
               )}
             </>

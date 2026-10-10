@@ -27,6 +27,7 @@ class FCFSScheduler:
         windows: List[VisibilityWindow],
         requests: List[DownlinkRequest],
         setup_time_seconds: int = 0,
+        locked_tasks: Optional[List[ScheduledTask]] = None,
     ):
         self.satellites = {s.id: s for s in satellites}
         self.ground_stations = {gs.id: gs for gs in ground_stations}
@@ -38,10 +39,12 @@ class FCFSScheduler:
         self.raw_windows = windows
         self.raw_requests = list(self.requests.values())
         self.setup_time_seconds = max(0, setup_time_seconds)
+        self.locked_tasks = locked_tasks or []
         
         # Track scheduled tasks for overlap & setup checks
         self.gs_tasks: Dict[str, List[ScheduledTask]] = {gs.id: [] for gs in ground_stations}
         self.sat_tasks: Dict[str, List[ScheduledTask]] = {s.id: [] for s in satellites}
+
         
     def _get_eligible_windows(self, request: DownlinkRequest) -> List[VisibilityWindow]:
         eligible = []
@@ -89,6 +92,19 @@ class FCFSScheduler:
         scheduled_tasks: List[ScheduledTask] = []
         rejected_request_ids: List[str] = []
         
+        locked_req_ids = {lt.request_id for lt in self.locked_tasks}
+
+        # Pre-allocate locked tasks into GS and Sat task registries
+        for lt in self.locked_tasks:
+            w = self.windows.get(lt.visibility_window_id)
+            gs_id = w.ground_station_id if w else None
+            sat_id = w.satellite_id if w else (self.requests[lt.request_id].satellite_id if lt.request_id in self.requests else None)
+            if gs_id and gs_id in self.gs_tasks:
+                self.gs_tasks[gs_id].append(lt)
+            if sat_id and sat_id in self.sat_tasks:
+                self.sat_tasks[sat_id].append(lt)
+            scheduled_tasks.append(lt)
+
         # 1. Sort requests deterministically
         # Tie-breaking rules:
         # 1. Earliest eligible visibility-window start time (ascending)
@@ -106,7 +122,12 @@ class FCFSScheduler:
         )
         
         for req in sorted_reqs:
+            if req.id in locked_req_ids:
+                # Locked tasks are already preserved in scheduled_tasks
+                continue
+
             windows = self._get_eligible_windows(req)
+
             if not windows:
                 rejected_request_ids.append(req.id)
                 continue
@@ -206,7 +227,7 @@ class FCFSScheduler:
             self.raw_requests,
             setup_time_seconds=self.setup_time_seconds,
         )
-        errors = validator.validate(scheduled_tasks)
+        errors = validator.validate(scheduled_tasks, locked_request_ids=locked_req_ids)
         
         status = SolverStatus.FEASIBLE
         if errors:
