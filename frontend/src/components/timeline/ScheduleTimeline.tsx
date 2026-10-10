@@ -45,8 +45,22 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
   const timelineEnd = maxTime + paddingMs;
   const totalDurationMs = Math.max(1, timelineEnd - timelineStart);
 
-  // Generate hourly / 30-min time ticks for the timeline header
-  const tickIntervalMs = 30 * 60 * 1000; // 30 minutes
+  // Dynamically determine tick interval based on total duration to keep marks neat
+  let tickIntervalMs = 30 * 60 * 1000; // default 30 min
+  const hoursDuration = totalDurationMs / (1000 * 60 * 60);
+  
+  if (hoursDuration > 24 * 3) {
+    tickIntervalMs = 24 * 60 * 60 * 1000; // 1 day
+  } else if (hoursDuration > 24) {
+    tickIntervalMs = 12 * 60 * 60 * 1000; // 12 hours
+  } else if (hoursDuration > 12) {
+    tickIntervalMs = 2 * 60 * 60 * 1000; // 2 hours
+  } else if (hoursDuration > 6) {
+    tickIntervalMs = 60 * 60 * 1000; // 1 hour
+  } else if (hoursDuration < 2) {
+    tickIntervalMs = 15 * 60 * 1000; // 15 mins
+  }
+
   const ticks: number[] = [];
   let currentTick = Math.ceil(timelineStart / tickIntervalMs) * tickIntervalMs;
   while (currentTick <= timelineEnd) {
@@ -130,8 +144,8 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
                     className="absolute -translate-x-1/2 flex flex-col items-center"
                     style={{ left: `${leftPercent}%` }}
                   >
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(tick).toISOString().substring(11, 16)} UTC
+                    <span className="text-[10px] text-slate-400 bg-slate-950/80 px-1 rounded backdrop-blur-sm z-10 whitespace-nowrap">
+                      {hoursDuration > 24 ? new Date(tick).toISOString().substring(5, 16).replace('T', ' ') : new Date(tick).toISOString().substring(11, 16)} UTC
                     </span>
                     <div className="w-px h-2 bg-slate-700 mt-1" />
                   </div>
@@ -192,9 +206,8 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
                           onMouseLeave={() => setHoveredPassId(null)}
                           className={`absolute h-10 rounded-lg border bg-gradient-to-r ${getPriorityColor(
                             p.priority
-                          )} px-2 py-1 text-[11px] font-mono cursor-pointer transition-all flex flex-col justify-center shadow-md select-none ${
-                            isHovered ? 'ring-2 ring-cyan-300 z-20 scale-[1.02]' : 'z-10'
-                          }`}
+                          )} px-2 py-1 text-[11px] font-mono cursor-pointer transition-all flex flex-col justify-center shadow-md select-none ${isHovered ? 'ring-2 ring-cyan-300 z-20 scale-[1.02]' : 'z-10'
+                            }`}
                           style={{
                             left: `${leftPercent}%`,
                             width: `${widthPercent}%`,

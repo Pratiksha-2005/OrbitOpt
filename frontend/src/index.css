@@ -14,7 +14,7 @@
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  
+
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   color-scheme: dark;
 }
@@ -54,10 +54,12 @@ body {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
   }
+
   70% {
     transform: scale(1);
     box-shadow: 0 0 0 10px rgba(6, 182, 212, 0);
   }
+
   100% {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
@@ -72,7 +74,209 @@ body {
   0% {
     background-position: 0 0;
   }
+
   100% {
     background-position: 0 100%;
   }
+}
+
+/* Advanced Satellite Animations */
+@keyframes orbit-1 {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes orbit-2 {
+  from {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+}
+
+@keyframes data-beam-1 {
+  0% {
+    opacity: 0;
+    height: 0px;
+  }
+
+  10% {
+    opacity: 1;
+    height: 200px;
+  }
+
+  20% {
+    opacity: 0;
+    height: 200px;
+  }
+
+  100% {
+    opacity: 0;
+    height: 200px;
+  }
+}
+
+@keyframes data-beam-2 {
+  0% {
+    opacity: 0;
+    height: 0px;
+  }
+
+  50% {
+    opacity: 0;
+    height: 0px;
+  }
+
+  60% {
+    opacity: 1;
+    height: 150px;
+  }
+
+  70% {
+    opacity: 0;
+    height: 150px;
+  }
+
+  100% {
+    opacity: 0;
+    height: 150px;
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-slower {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1.1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+}
+
+.animate-orbit-1 {
+  animation: orbit-1 15s linear infinite;
+}
+
+.animate-orbit-2 {
+  animation: orbit-2 20s linear infinite;
+}
+
+.animate-data-beam-1 {
+  animation: data-beam-1 5s infinite;
+}
+
+.animate-data-beam-2 {
+  animation: data-beam-2 6s infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s ease-in-out infinite;
+}
+
+.animate-pulse-slower {
+  animation: pulse-slower 12s ease-in-out infinite;
+}
+
+/* Stars and Twinkling */
+.stars {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 40px 70px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 50px 160px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1.5px 1.5px at 90px 40px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 130px 80px, #ffffff, rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 160px 120px, #ffffff, rgba(0, 0, 0, 0));
+  background-size: 200px 200px;
+  animation: bg-pan-slow 60s linear infinite;
+}
+
+.twinkling {
+  background: transparent url('https://s3-us-west-2.amazonaws.com/s.cdpn.io/1231630/twinkling.png') repeat top center;
+  animation: bg-pan-fast 100s linear infinite;
+  opacity: 0.4;
+}
+
+@keyframes bg-pan-slow {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: -200px -200px;
+  }
+}
+
+@keyframes bg-pan-fast {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: -1000px 500px;
+  }
+}
+
+/* Timeline Animations */
+@keyframes slide-in-block {
+  from { opacity: 0; transform: scaleX(0.1) translateY(10px); transform-origin: left center; }
+  to { opacity: 1; transform: scaleX(1) translateY(0); transform-origin: left center; }
+}
+
+@keyframes sweep-scan {
+  0% { transform: translateX(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(800%); opacity: 0; }
+}
+
+@keyframes row-fade-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes glass-shimmer {
+  0% { transform: translateX(-150%); }
+  50% { transform: translateX(150%); }
+  100% { transform: translateX(150%); }
+}
+
+.animate-slide-in-block {
+  animation: slide-in-block 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-sweep-scan {
+  animation: sweep-scan 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-row-fade-in {
+  animation: row-fade-in 0.5s ease-out both;
+}
+
+.animate-glass-shimmer {
+  animation: glass-shimmer 3s ease-in-out infinite;
 }

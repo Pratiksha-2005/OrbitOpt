@@ -11,6 +11,12 @@ from .satellite_pass import SatellitePassCreate, SatellitePassRead
 class DatasetCreate(OrbitOptBaseModel):
     """Schema for creating and registering a scenario dataset."""
 
+    dataset_id: Optional[str] = Field(
+        default=None,
+        description="Optional custom unique identifier for deterministic scenario registration",
+        max_length=64,
+        examples=["ds_priority_contention_benchmark"],
+    )
     name: str = Field(
         ...,
         description="Descriptive name of the scheduling dataset scenario",

@@ -10,6 +10,7 @@ from app.db.models.dataset import (
     DatasetModel,
     GroundStationModel,
     SatellitePassModel,
+    generate_dataset_id,
 )
 from app.schemas.dataset import DatasetCreate, DatasetRead, DatasetSummary
 from app.schemas.ground_station import GroundStationRead
@@ -24,7 +25,18 @@ class DatasetService:
 
     async def create_dataset(self, data: DatasetCreate) -> DatasetRead:
         """Persist a new dataset with its ground stations and passes."""
+        target_id = data.dataset_id or generate_dataset_id()
+        
+        # If dataset with target_id exists, remove it first to avoid duplicate primary key collisions
+        stmt_existing = select(DatasetModel).where(DatasetModel.id == target_id)
+        res_existing = await self.db.execute(stmt_existing)
+        existing = res_existing.scalar_one_or_none()
+        if existing:
+            await self.db.delete(existing)
+            await self.db.flush()
+
         dataset = DatasetModel(
+            id=target_id,
             name=data.name,
             description=data.description,
         )
@@ -83,19 +95,34 @@ class DatasetService:
         return self._to_read_schema(dataset)
 
     async def list_datasets(self, skip: int = 0, limit: int = 50) -> List[DatasetSummary]:
-        """List summary info for stored datasets."""
+        """List summary info for stored datasets, prioritizing core benchmark scenarios."""
         stmt = (
             select(DatasetModel)
             .options(
                 selectinload(DatasetModel.ground_stations),
                 selectinload(DatasetModel.satellite_passes),
             )
-            .offset(skip)
-            .limit(limit)
             .order_by(DatasetModel.created_at.desc())
         )
         result = await self.db.execute(stmt)
         datasets = result.scalars().all()
+
+        priority_order = {
+            "ds_priority_contention_benchmark": 0,
+            "ds_leo_constellation_baseline": 1,
+            "ds_disaster_response_p1_heavy": 2,
+        }
+
+        # Deduplicate legacy test entries to keep scenario picker crisp and clear
+        seen = set()
+        deduped = []
+        for d in sorted(datasets, key=lambda x: priority_order.get(x.id, 99)):
+            key = (d.name, len(d.satellite_passes), len(d.ground_stations))
+            if d.id in priority_order or key not in seen:
+                seen.add(key)
+                deduped.append(d)
+
+        paginated = deduped[skip : skip + limit]
 
         return [
             DatasetSummary(
@@ -106,7 +133,7 @@ class DatasetService:
                 satellite_pass_count=len(d.satellite_passes),
                 created_at=d.created_at,
             )
-            for d in datasets
+            for d in paginated
         ]
 
     def _to_read_schema(self, dataset: DatasetModel) -> DatasetRead:

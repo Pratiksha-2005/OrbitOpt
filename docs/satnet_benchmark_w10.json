@@ -1,8 +1,8 @@
 {
   "benchmark_metadata": {
     "week": "W10_2018",
-    "dataset_directory": "E:\\Space-Tech\\OrbitOpt\\datasets\\satnet-master\\data",
-    "timestamp_utc": "2026-10-09T14:23:55Z",
+    "dataset_directory": "E:\\Hackathons\\OrbitOpt\\OrbitOpt\\datasets\\satnet-master\\data",
+    "timestamp_utc": "2026-10-09T19:02:37Z",
     "total_requests": 257,
     "total_requested_hours": 1191.5,
     "total_candidate_windows": 2513,
@@ -21,25 +21,25 @@
     "request_satisfaction_rate_pct": 83.27,
     "scheduled_contact_hours": 837.3,
     "hours_completion_rate_pct": 70.27,
-    "runtime_seconds": 0.0031
+    "runtime_seconds": 0.0038
   },
   "cpsat_optimizer": {
     "status": "FEASIBLE",
     "is_valid": true,
     "violations_count": 0,
     "violations": [],
-    "scheduled_requests": 223,
-    "rejected_requests": 34,
-    "request_satisfaction_rate_pct": 86.77,
-    "scheduled_contact_hours": 896.83,
-    "hours_completion_rate_pct": 75.27,
-    "runtime_seconds": 30.341,
+    "scheduled_requests": 220,
+    "rejected_requests": 37,
+    "request_satisfaction_rate_pct": 85.6,
+    "scheduled_contact_hours": 869.38,
+    "hours_completion_rate_pct": 72.96,
+    "runtime_seconds": 30.321,
     "solver_time_limit_seconds": 30.0
   },
   "optimization_deltas": {
-    "additional_contact_hours": 59.53,
-    "additional_requests_scheduled": 9,
-    "request_satisfaction_rate_gain_pct": 3.5,
-    "hours_completion_rate_gain_pct": 5.0
+    "additional_contact_hours": 32.08,
+    "additional_requests_scheduled": 6,
+    "request_satisfaction_rate_gain_pct": 2.33,
+    "hours_completion_rate_gain_pct": 2.69
   }
 }

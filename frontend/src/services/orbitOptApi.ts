@@ -8,6 +8,8 @@ import axios, { AxiosError } from 'axios';
 import type {
   Dataset,
   DatasetSummary,
+  GroundStation,
+  SatellitePass,
   ScheduleRunResponse,
   ScheduleMetrics,
   HealthCheckResponse,
@@ -60,7 +62,13 @@ export const getDataset = async (datasetId: string): Promise<Dataset> => {
  * Create a new dataset scenario
  */
 export const createDataset = async (
-  data: Omit<Dataset, 'dataset_id' | 'created_at' | 'ground_station_count' | 'satellite_pass_count'>
+  data: {
+    dataset_id?: string;
+    name: string;
+    description?: string;
+    ground_stations: GroundStation[];
+    satellite_passes: SatellitePass[];
+  }
 ): Promise<Dataset> => {
   const response = await apiClient.post<Dataset>('/datasets', data);
   return response.data;

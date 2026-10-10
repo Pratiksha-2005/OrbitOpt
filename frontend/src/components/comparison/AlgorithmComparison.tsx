@@ -7,8 +7,12 @@ import {
   Zap,
   ShieldCheck,
   RotateCw,
+  Server,
+  ShieldAlert,
+  Layers,
+  Info,
 } from 'lucide-react';
-import type { ScheduleRunResponse } from '../../types/api';
+import type { Dataset, ScheduleRunResponse } from '../../types/api';
 import { ComparisonCharts } from './ComparisonCharts';
 import { UnassignedAnalysis } from './UnassignedAnalysis';
 
@@ -17,6 +21,11 @@ interface AlgorithmComparisonProps {
   optimizedRun: ScheduleRunResponse;
   onRerunComparison: () => void;
   isLoading: boolean;
+  activeDatasetName?: string;
+  datasets?: Dataset[];
+  selectedDatasetId?: string;
+  onSelectDatasetId?: (id: string) => void;
+  isBackendConnected?: boolean;
 }
 
 export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
@@ -24,9 +33,16 @@ export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
   optimizedRun,
   onRerunComparison,
   isLoading,
+  activeDatasetName = 'Current Scenario',
+  datasets = [],
+  selectedDatasetId,
+  onSelectDatasetId,
+  isBackendConnected = false,
 }) => {
   const b = baselineRun.metrics;
   const o = optimizedRun.metrics;
+
+  const isLiveRun = !baselineRun.is_mock && !optimizedRun.is_mock;
 
   // Compute key delta statistics
   const dataDeltaGb = o.total_data_downlinked_gb - b.total_data_downlinked_gb;
@@ -40,32 +56,80 @@ export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
     : '0';
 
   const p1Delta = o.priority_satisfaction_rate - b.priority_satisfaction_rate;
+  const isZeroDelta = dataDeltaGb === 0 && objDelta === 0;
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & Trigger */}
+      {/* Top Banner & Mode Indication */}
       <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             <Scale className="w-5 h-5 text-indigo-400" />
             <h3 className="text-base font-bold text-slate-100">
               Algorithmic Benchmark: Baseline (FCFS) vs CP-SAT Optimizer
             </h3>
+            {isLiveRun ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-semibold">
+                <Server className="w-3 h-3" />
+                LIVE SOLVER RUN {isBackendConnected ? '(BACKEND ONLINE)' : ''}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-semibold">
+                <ShieldAlert className="w-3 h-3" />
+                DEMO BENCHMARK DATA {!isBackendConnected ? '(OFFLINE FALLBACK)' : ''}
+              </span>
+            )}
           </div>
-          <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Evaluates the mathematical optimization gain achieved by Google OR-Tools CP-SAT solver over standard First-Come-First-Served scheduling under 60-second antenna setup constraints.
+          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+            Evaluates the mathematical optimization gain achieved by Google OR-Tools CP-SAT solver over standard First-Come-First-Served scheduling under antenna setup constraints.
           </p>
+          <div className="flex items-center gap-2 text-[11px] text-indigo-300 font-medium pt-1">
+            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Scenario: <strong className="text-slate-100">{activeDatasetName}</strong></span>
+          </div>
         </div>
 
-        <button
-          onClick={onRerunComparison}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition disabled:opacity-50 shrink-0 self-start md:self-auto"
-        >
-          <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Re-run Benchmark
-        </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0 self-start md:self-auto">
+          {datasets.length > 0 && onSelectDatasetId && (
+            <select
+              value={selectedDatasetId}
+              onChange={(e) => onSelectDatasetId(e.target.value)}
+              disabled={isLoading}
+              className="px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition disabled:opacity-50"
+            >
+              {datasets.map((d) => (
+                <option key={d.dataset_id} value={d.dataset_id}>
+                  {d.name} ({d.satellite_passes?.length || d.satellite_pass_count || 0} passes)
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            onClick={onRerunComparison}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition disabled:opacity-50"
+          >
+            <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Re-run Benchmark
+          </button>
+        </div>
       </div>
+
+      {/* Contextual Notice for Convergence */}
+      {isZeroDelta && (
+        <div className="p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200 flex items-start gap-3">
+          <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="font-semibold text-slate-100">
+              Optimal Baseline Convergence
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[11px]">
+              In this specific scenario ({activeDatasetName}), the naive chronological order of pass arrival happened to coincide with the global mathematical optimum, leaving no priority inversions to resolve. To evaluate severe antenna contention and priority-based conflict resolution, switch to a contention scenario like <strong className="text-indigo-200">"LEO Multi-Satellite Constellation"</strong> or <strong className="text-indigo-200">"Priority Contention Benchmark"</strong>.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Delta Performance Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -129,9 +193,9 @@ export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
             <span className="text-2xl font-bold text-cyan-300 font-mono">
               {o.priority_satisfaction_rate.toFixed(1)}%
             </span>
-            {p1Delta > 0 && (
-              <span className="text-xs text-cyan-400 font-semibold font-mono">
-                (+{p1Delta.toFixed(1)}%)
+            {p1Delta !== 0 && (
+              <span className={`text-xs font-semibold font-mono ${p1Delta >= 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
+                ({p1Delta >= 0 ? `+${p1Delta.toFixed(1)}` : p1Delta.toFixed(1)}%)
               </span>
             )}
           </div>
@@ -157,7 +221,7 @@ export const AlgorithmComparison: React.FC<AlgorithmComparisonProps> = ({
             <span className="text-xs text-slate-400 font-mono">ms</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-2">
-            Fast CP-SAT convergence (Status: <strong className="text-emerald-400">{optimizedRun.solver_status_detail || 'OPTIMAL'}</strong>)
+            Convergence Status: <strong className="text-emerald-400">{optimizedRun.solver_status_detail || 'OPTIMAL'}</strong>
           </p>
         </div>
       </div>
