@@ -456,6 +456,11 @@ export const App: React.FC = () => {
                 <GroundStationsView
                   stations={activeDataset.ground_stations}
                   activeRun={activeRun}
+                  datasetId={activeDataset.dataset_id}
+                  onScheduleUpdate={(run) => {
+                    setActiveRun(run);
+                    setOptimizedRun(run);
+                  }}
                 />
               )}
             </>

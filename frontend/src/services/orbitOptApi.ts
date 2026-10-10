@@ -129,6 +129,44 @@ export const getScheduleMetrics = async (runId: string): Promise<ScheduleMetrics
 };
 
 /**
+ * Register a ground station outage and trigger event-driven re-optimization
+ */
+export const createOutage = async (payload: {
+  station_id: string;
+  start_time: string;
+  end_time: string;
+  reason: string;
+  dataset_id?: string;
+  auto_reoptimize?: boolean;
+  notes?: string;
+}) => {
+  const response = await apiClient.post('/outages', payload);
+  return response.data;
+};
+
+/**
+ * List ground station outages
+ */
+export const listOutages = async (params?: {
+  station_id?: string;
+  dataset_id?: string;
+  status?: string;
+}) => {
+  const response = await apiClient.get('/outages', { params });
+  return response.data;
+};
+
+/**
+ * Resolve/close an outage and restore station scheduling capacity
+ */
+export const resolveOutage = async (outageId: string, autoReoptimize = true) => {
+  const response = await apiClient.post(`/outages/${outageId}/resolve`, null, {
+    params: { auto_reoptimize: autoReoptimize },
+  });
+  return response.data;
+};
+
+/**
  * Helper to parse backend error details cleanly
  */
 export const getApiErrorMessage = (error: unknown): string => {

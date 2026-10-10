@@ -53,6 +53,22 @@ export interface DatasetSummary {
   created_at: string;
 }
 
+export interface DynamicWeights {
+  emergency_weight: number;
+  urgency_weight: number;
+  freshness_weight: number;
+  waiting_weight: number;
+}
+
+export interface ScoreBreakdown {
+  emergency_score: number;
+  urgency_score: number;
+  freshness_score: number;
+  waiting_score: number;
+  combined_score: number;
+  explanation: string;
+}
+
 export interface ScheduledPass {
   pass_id: string;
   satellite_id: string;
@@ -63,6 +79,8 @@ export interface ScheduledPass {
   data_volume_gb: number;
   transferable_data_gb: number;
   priority: PriorityLevel;
+  dynamic_score?: number;
+  score_breakdown?: ScoreBreakdown;
 }
 
 export interface UnassignedPass {
@@ -73,6 +91,8 @@ export interface UnassignedPass {
   end_time: string;
   priority: PriorityLevel;
   reason: string;
+  dynamic_score?: number;
+  score_breakdown?: ScoreBreakdown;
 }
 
 export interface ScheduleMetrics {
@@ -88,6 +108,7 @@ export interface ScheduleMetrics {
   priority_breakdown: Record<string, number>;
   ground_station_utilization: Record<string, number>;
   conflicts_detected: number;
+  average_dynamic_score?: number;
 }
 
 export interface ScheduleRunResponse {
@@ -118,4 +139,37 @@ export interface HealthCheckResponse {
   timestamp: string;
   environment: string;
   database_connected: boolean;
+}
+
+export interface OutageRead {
+  id: string;
+  station_id: string;
+  dataset_id?: string;
+  start_time: string;
+  end_time: string;
+  duration_seconds: number;
+  reason: string;
+  status: 'active' | 'resolved' | 'cancelled';
+  auto_reoptimized: boolean;
+  reoptimization_run_id?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OutageCreate {
+  station_id: string;
+  start_time: string;
+  end_time: string;
+  reason: string;
+  dataset_id?: string;
+  auto_reoptimize?: boolean;
+  notes?: string;
+}
+
+export interface OutageActionResponse {
+  outage: OutageRead;
+  affected_pass_ids: string[];
+  reoptimized_schedule?: ScheduleRunResponse;
+  message: string;
 }

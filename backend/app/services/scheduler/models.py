@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from enum import Enum, IntEnum
-from typing import List
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -57,6 +57,7 @@ class GroundStation(BaseModel):
     id: str = Field(..., min_length=1)
     name: str
     downlink_rate_mbps: float = Field(..., gt=0.0)
+    outages: List[TimeWindow] = Field(default_factory=list)
 
 
 class VisibilityWindow(TimeWindow):
@@ -70,6 +71,12 @@ class DownlinkRequest(BaseModel):
     satellite_id: str = Field(..., min_length=1)
     data_volume_mb: float = Field(..., ge=0.0)
     priority: Priority
+    created_at: Optional[datetime] = None
+    deadline: Optional[datetime] = None
+    data_generated_at: Optional[datetime] = None
+    is_emergency: bool = False
+    dynamic_score: Optional[float] = None
+    score_breakdown: Optional[dict] = None
 
 
 class ScheduledTask(TimeWindow):
@@ -77,6 +84,8 @@ class ScheduledTask(TimeWindow):
     request_id: str = Field(..., min_length=1)
     visibility_window_id: str = Field(..., min_length=1)
     data_transmitted_mb: float = Field(..., ge=0.0)
+    dynamic_score: Optional[float] = None
+    score_breakdown: Optional[dict] = None
 
 
 class ScheduleResult(BaseModel):
@@ -88,3 +97,4 @@ class ScheduleResult(BaseModel):
     solver_status: SolverStatus
     is_valid: bool
     validation_errors: List[str] = Field(default_factory=list)
+    average_dynamic_score: Optional[float] = None

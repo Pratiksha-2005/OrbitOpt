@@ -40,3 +40,7 @@ class ScheduleMetrics(OrbitOptBaseModel):
         default=0,
         description="Number of ground station or antenna temporal conflicts detected/resolved",
     )
+    average_dynamic_score: Optional[float] = Field(
+        default=None,
+        description="Mean dynamic priority score across all scheduled passes [0.0 - 100.0]",
+    )

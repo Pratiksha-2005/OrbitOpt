@@ -41,6 +41,14 @@ class ScheduledPass(OrbitOptBaseModel):
         description="Transferable data in GB: min(pending_data, effective_data_rate * duration)",
     )
     priority: int = Field(..., description="Pass priority level [1-5]")
+    dynamic_score: Optional[float] = Field(
+        default=None,
+        description="Multi-factor dynamic priority score [0.0 - 100.0] combining E, U, F, W",
+    )
+    score_breakdown: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Breakdown of individual factor scores (emergency, urgency, freshness, waiting) and rationale",
+    )
 
     @model_validator(mode="after")
     def sync_transferable_data(self) -> "ScheduledPass":
@@ -59,6 +67,30 @@ class UnassignedPass(OrbitOptBaseModel):
     end_time: datetime = Field(..., description="Pass end time in UTC")
     priority: int = Field(..., description="Pass priority level")
     reason: str = Field(..., description="Explanation why the pass could not be scheduled (e.g., 'Station overlap with PASS-001')")
+    dynamic_score: Optional[float] = Field(
+        default=None,
+        description="Multi-factor dynamic priority score [0.0 - 100.0]",
+    )
+    score_breakdown: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Breakdown of individual factor scores",
+    )
+
+
+class DynamicWeightsInput(OrbitOptBaseModel):
+    """Configurable weights for dynamic multi-factor scoring (E+U+F+W = 1.0)."""
+
+    emergency_weight: float = Field(default=0.40, ge=0.0, le=1.0, description="Emergency tier weight (E)")
+    urgency_weight: float = Field(default=0.30, ge=0.0, le=1.0, description="Deadline urgency weight (U)")
+    freshness_weight: float = Field(default=0.10, ge=0.0, le=1.0, description="Data freshness weight (F)")
+    waiting_weight: float = Field(default=0.20, ge=0.0, le=1.0, description="Waiting anti-starvation weight (W)")
+
+    @model_validator(mode="after")
+    def validate_sum(self) -> "DynamicWeightsInput":
+        total = self.emergency_weight + self.urgency_weight + self.freshness_weight + self.waiting_weight
+        if abs(total - 1.0) > 1e-4:
+            raise ValueError(f"Dynamic weights must sum to 1.0, got {total:.4f}")
+        return self
 
 
 class BaselineScheduleRequest(OrbitOptBaseModel):
@@ -69,6 +101,10 @@ class BaselineScheduleRequest(OrbitOptBaseModel):
         default=120,
         description="Required re-pointing/calibration buffer between passes at the same station (seconds)",
         ge=0,
+    )
+    dynamic_weights: Optional[DynamicWeightsInput] = Field(
+        default=None,
+        description="Optional weights for dynamic priority calculation",
     )
 
 
@@ -96,6 +132,10 @@ class OptimizeScheduleRequest(OrbitOptBaseModel):
             "5": 0.5,
         },
         description="Custom weights assigned to priority levels 1-5 (1=Highest priority)",
+    )
+    dynamic_weights: Optional[DynamicWeightsInput] = Field(
+        default=None,
+        description="Weights for dynamic multi-factor scoring (Emergency, Urgency, Freshness, Waiting)",
     )
     maximize_data_volume: bool = Field(
         default=True,

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.services.dataset_service import DatasetService
+from app.services.outage_service import OutageService
 from app.services.schedule_service import ScheduleService
 from app.services.scheduler.real_engine import RealSchedulerEngine
 from app.services.scheduler_interface import BaseSchedulerEngine
@@ -32,3 +33,11 @@ def get_schedule_service(
 ) -> ScheduleService:
     """Provide ScheduleService with active database session and scheduler engine."""
     return ScheduleService(db=db, scheduler_engine=scheduler_engine)
+
+
+def get_outage_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    scheduler_engine: Annotated[BaseSchedulerEngine, Depends(get_scheduler_engine)],
+) -> OutageService:
+    """Provide OutageService with active database session and scheduler engine."""
+    return OutageService(db=db, scheduler_engine=scheduler_engine)

@@ -54,3 +54,15 @@ class SchedulingEngineError(OrbitOptException):
             details=details,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+class InvalidOutageError(OrbitOptException):
+    """Raised when an outage interval or station configuration is invalid."""
+
+    def __init__(self, message: str, details: Optional[List[Dict[str, Any]]] = None) -> None:
+        super().__init__(
+            message=message,
+            error_code="INVALID_OUTAGE_INTERVAL",
+            details=details,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )

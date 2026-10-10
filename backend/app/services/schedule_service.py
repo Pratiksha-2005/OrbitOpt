@@ -75,6 +75,41 @@ class ScheduleService:
         await self._persist_run(result, parameters=request.model_dump(mode="json"))
         return result
 
+    async def execute_reoptimize(
+        self,
+        request: OptimizeScheduleRequest,
+        previous_run_id: Optional[str] = None,
+    ) -> ScheduleRunResponse:
+        """Run safe re-optimization preserving previous schedule if candidate is invalid or fails."""
+        dataset = await self.dataset_service.get_dataset(request.dataset_id)
+        previous_schedule = None
+        if previous_run_id:
+            try:
+                previous_schedule = await self.get_schedule_run(previous_run_id)
+            except ResourceNotFoundError:
+                logger.warning("Previous run ID '%s' not found for re-optimization fallback.", previous_run_id)
+
+        try:
+            if hasattr(self.scheduler_engine, "safe_reoptimize"):
+                result = await self.scheduler_engine.safe_reoptimize(
+                    dataset=dataset,
+                    request=request,
+                    previous_schedule=previous_schedule,
+                )
+            else:
+                result = await self.scheduler_engine.schedule_optimize(dataset, request)
+        except Exception as exc:
+            logger.error("Re-optimization scheduling engine failed: %s", exc, exc_info=True)
+            if previous_schedule and previous_schedule.is_valid:
+                logger.info("Preserving previous valid schedule '%s' after error.", previous_schedule.run_id)
+                return previous_schedule
+            raise SchedulingEngineError(
+                message=f"Re-optimization failed for dataset '{request.dataset_id}': {str(exc)}"
+            ) from exc
+
+        await self._persist_run(result, parameters=request.model_dump(mode="json"))
+        return result
+
     async def get_schedule_run(self, run_id: str) -> ScheduleRunResponse:
         """Retrieve a previous schedule run from database."""
         stmt = (

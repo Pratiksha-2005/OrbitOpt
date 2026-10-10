@@ -1,10 +1,10 @@
-"""Developer 1 CP-SAT Multi-Satellite Optimizer."""
+"""Developer 1 CP-SAT Multi-Satellite Optimizer with antenna setup time and dynamic priority scoring."""
 
 import time
 import uuid
 import math
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from ortools.sat.python import cp_model
 
 from app.services.scheduler.models import (
@@ -20,6 +20,8 @@ from app.services.scheduler.validator import ScheduleValidator
 
 
 class CPSATScheduler:
+    """Constraint Programming (OR-Tools CP-SAT) Multi-Satellite ground network optimizer."""
+
     def __init__(
         self,
         satellites: List[Satellite],
@@ -27,11 +29,11 @@ class CPSATScheduler:
         windows: List[VisibilityWindow],
         requests: List[DownlinkRequest],
         time_limit_sec: float = 60.0,
+        setup_time_seconds: int = 0,
     ):
         self.satellites = {s.id: s for s in satellites}
         self.ground_stations = {gs.id: gs for gs in ground_stations}
         self.windows = {w.id: w for w in windows}
-        # Deduplicate requests if they are passed multiple times
         self.requests = {r.id: r for r in requests}
         
         self.raw_satellites = satellites
@@ -39,7 +41,8 @@ class CPSATScheduler:
         self.raw_windows = windows
         self.raw_requests = list(self.requests.values())
         
-        self.time_limit_sec = time_limit_sec
+        self.time_limit_sec = max(0.5, float(time_limit_sec))
+        self.setup_time_seconds = max(0, int(setup_time_seconds))
         
     def _get_eligible_windows(self, request: DownlinkRequest) -> List[VisibilityWindow]:
         eligible = []
@@ -75,10 +78,24 @@ class CPSATScheduler:
         from collections import defaultdict
         intervals_by_gs = defaultdict(list)
         intervals_by_sat = defaultdict(list)
+
+        # Add ground station outage windows to NoOverlap intervals
+        for gs in self.ground_stations.values():
+            for outage in getattr(gs, "outages", []):
+                s_int = self._datetime_to_int(outage.start_time)
+                e_int = self._datetime_to_int(outage.end_time)
+                if e_int <= s_int:
+                    continue
+                outage_dur = e_int - s_int
+                outage_id = uuid.uuid4().hex[:8]
+                outage_interval = model.NewIntervalVar(
+                    s_int, outage_dur, e_int, f"outage_{gs.id}_{outage_id}"
+                )
+                intervals_by_gs[gs.id].append(outage_interval)
         
-        x_vars = {} # (req_id, window_id) -> bool var
-        start_vars = {} # (req_id, window_id) -> int var
-        end_vars = {} # (req_id, window_id) -> int var
+        x_vars = {}       # (req_id, window_id) -> bool var
+        start_vars = {}   # (req_id, window_id) -> int var
+        end_vars = {}     # (req_id, window_id) -> int var
         
         rejected_request_ids = []
         objective_terms = []
@@ -95,58 +112,83 @@ class CPSATScheduler:
                 gs = self.ground_stations[w.ground_station_id]
                 
                 # Duration in seconds (conservative integer rounding up to never shorten duration)
-                duration_sec = math.ceil((req.data_volume_mb * 8) / gs.downlink_rate_mbps)
+                duration_sec = math.ceil((req.data_volume_mb * 8.0) / gs.downlink_rate_mbps)
                 
                 # Time bounds
                 w_start_sec = self._datetime_to_int(w.start_time)
                 w_end_sec = self._datetime_to_int(w.end_time)
                 
                 if w_end_sec - w_start_sec < duration_sec:
-                    continue # Impossible to fit
+                    continue  # Impossible to fit within physical visibility bounds
                 
                 x = model.NewBoolVar(f"x_{req.id}_{w.id}")
-                s = model.NewIntVar(w_start_sec, w_end_sec, f"s_{req.id}_{w.id}")
-                e = model.NewIntVar(w_start_sec, w_end_sec, f"e_{req.id}_{w.id}")
+                s = model.NewIntVar(w_start_sec, w_end_sec - duration_sec, f"s_{req.id}_{w.id}")
+                e = model.NewIntVar(w_start_sec + duration_sec, w_end_sec, f"e_{req.id}_{w.id}")
                 
-                interval = model.NewOptionalIntervalVar(s, duration_sec, e, x, f"i_{req.id}_{w.id}")
+                # Satellite physical interval (pure transmission duration)
+                sat_interval = model.NewOptionalIntervalVar(
+                    s, duration_sec, e, x, f"i_sat_{req.id}_{w.id}"
+                )
+                intervals_by_sat[w.satellite_id].append(sat_interval)
                 
-                intervals_by_gs[w.ground_station_id].append(interval)
-                intervals_by_sat[w.satellite_id].append(interval)
+                # Ground Station interval (includes antenna slew/setup buffer if configured)
+                if self.setup_time_seconds > 0:
+                    gs_duration_sec = duration_sec + self.setup_time_seconds
+                    e_gs = model.NewIntVar(
+                        w_start_sec + gs_duration_sec,
+                        w_end_sec + self.setup_time_seconds,
+                        f"e_gs_{req.id}_{w.id}",
+                    )
+                    model.Add(e_gs == s + gs_duration_sec).OnlyEnforceIf(x)
+                    gs_interval = model.NewOptionalIntervalVar(
+                        s, gs_duration_sec, e_gs, x, f"i_gs_{req.id}_{w.id}"
+                    )
+                    intervals_by_gs[w.ground_station_id].append(gs_interval)
+                else:
+                    intervals_by_gs[w.ground_station_id].append(sat_interval)
                 
                 x_vars[(req.id, w.id)] = x
                 start_vars[(req.id, w.id)] = s
                 end_vars[(req.id, w.id)] = e
                 r_x_vars.append(x)
                 
-                # Objective coefficient mapping: priority * data_volume_mb (scale by 10 to keep integer, avoid float issues)
-                # This ensures higher priority/larger data gets scheduled if conflicts exist.
-                coeff = int(round(req.priority.value * req.data_volume_mb * 10))
+                # Dynamic Priority Weighted Objective Term:
+                # Uses dynamic multi-factor score (0-100) or priority tier (1-4)
+                if req.dynamic_score is not None:
+                    weight_factor = req.dynamic_score
+                else:
+                    weight_factor = float(req.priority.value * 25.0)
+
+                # Integer objective coefficient: weight_factor * data_volume_mb
+                coeff = int(round(weight_factor * req.data_volume_mb))
                 objective_terms.append(x * coeff)
                 
             if r_x_vars:
-                # Each request is scheduled at most once
+                # Each request is allocated at most once globally
                 model.AddAtMostOne(r_x_vars)
             else:
                 rejected_request_ids.append(req.id)
                 
-        # No overlap constraints
+        # Ground Station antenna exclusivity constraint (no overlapping allocations)
         for gs_id, intervals in intervals_by_gs.items():
             model.AddNoOverlap(intervals)
             
+        # Satellite transmitter exclusivity constraint (satellite can only downlink to one antenna at a time)
         for sat_id, intervals in intervals_by_sat.items():
             model.AddNoOverlap(intervals)
             
-        # Maximize priority-weighted data volume
-        model.Maximize(sum(objective_terms))
+        # Maximize total priority-weighted data volume
+        if objective_terms:
+            model.Maximize(sum(objective_terms))
         
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.time_limit_sec
-        solver.parameters.random_seed = 42 # Deterministic where practical
-        solver.parameters.num_search_workers = 1 # Single worker for true determinism
+        solver.parameters.random_seed = 42
+        solver.parameters.num_search_workers = 1  # Deterministic execution
         
         status_code = solver.Solve(model)
         
-        # Map status
+        # Map CP-SAT status
         status_map = {
             cp_model.OPTIMAL: SolverStatus.OPTIMAL,
             cp_model.FEASIBLE: SolverStatus.FEASIBLE,
@@ -156,7 +198,7 @@ class CPSATScheduler:
         }
         status = status_map.get(status_code, SolverStatus.UNKNOWN)
         
-        scheduled_tasks = []
+        scheduled_tasks: List[ScheduledTask] = []
         actual_objective = 0.0
         
         if status_code in (cp_model.OPTIMAL, cp_model.FEASIBLE):
@@ -175,16 +217,16 @@ class CPSATScheduler:
                             start_time=self._int_to_datetime(s_val),
                             end_time=self._int_to_datetime(e_val),
                             data_transmitted_mb=req.data_volume_mb,
+                            dynamic_score=req.dynamic_score,
                         )
                         scheduled_tasks.append(task)
                         actual_objective += req.data_volume_mb * req.priority.value
                         scheduled = True
-                        break # scheduled at most once
+                        break
                 
                 if not scheduled and req.id not in rejected_request_ids:
                     rejected_request_ids.append(req.id)
         else:
-            # If completely infeasible or unknown
             for req in self.raw_requests:
                 if req.id not in rejected_request_ids:
                     rejected_request_ids.append(req.id)
@@ -192,12 +234,22 @@ class CPSATScheduler:
         runtime = time.time() - start_runtime
         
         validator = ScheduleValidator(
-            self.raw_satellites, self.raw_ground_stations, self.raw_windows, self.raw_requests
+            self.raw_satellites,
+            self.raw_ground_stations,
+            self.raw_windows,
+            self.raw_requests,
+            setup_time_seconds=self.setup_time_seconds,
         )
         errors = validator.validate(scheduled_tasks)
         
         if errors:
             status = SolverStatus.MODEL_INVALID
+
+        avg_dynamic_score = None
+        if scheduled_tasks:
+            scores = [t.dynamic_score for t in scheduled_tasks if t.dynamic_score is not None]
+            if scores:
+                avg_dynamic_score = round(sum(scores) / len(scores), 2)
             
         return ScheduleResult(
             id=f"cpsat-run-{uuid.uuid4().hex[:8]}",
@@ -208,4 +260,5 @@ class CPSATScheduler:
             solver_status=status,
             is_valid=len(errors) == 0,
             validation_errors=errors,
+            average_dynamic_score=avg_dynamic_score,
         )
