@@ -1,48 +1,117 @@
-# OrbitOpt — Optimization Engine
+# OrbitOpt — Autonomous Ground Station Scheduling & Downlink Optimization
 
-This repository contains the core scheduling and optimization engine for the OrbitOpt platform, designed to manage complex satellite downlink and resource scheduling under strict real-world constraints.
+OrbitOpt is an optimization platform for space missions and satellite ground networks. It automates conflict-free scheduling across heterogeneous ground stations and Deep Space Network (DSN) antennas using First-Come-First-Served (FCFS) heuristics and Google OR-Tools Constraint Programming (CP-SAT) optimization.
 
-## Features (Phases 1-5 Completed)
+---
 
-The optimization engine implements a robust mathematically sound CP-SAT solver designed to handle high-throughput satellite scheduling.
+## Key Capabilities
 
-### Core Scheduling & Models
-- **Strict Pydantic Validation:** All entities (Satellites, Ground Stations, Windows, Requests, Schedules) are strictly typed and validated using Pydantic models.
-- **FCFS Baseline:** Includes a fully deterministic First-Come-First-Serve baseline scheduler for benchmarking.
-- **Constraints Enforcement:** Fully supports `deadline` parameters on requests and absolute `outage` windows on ground stations.
-- **Robust Metrics:** Implements interval-merging algorithms to correctly evaluate absolute Ground Station Utilization despite overlapping windows, alongside comprehensive data-transmission metrics and FCFS comparative scores.
+- **Constraint Optimization:** Handles antenna contention, multi-dish array locking, setup/teardown margins, maintenance outage blocks, and flexible duration bounds.
+- **Dual-Model Support:**
+  - **Earth-Orbit Downlink Missions:** Optimized for data throughput (GB), elevation profiles, and satellite priority weights.
+  - **Deep Space Network (NASA DSN SatNet):** Evaluated against real NASA operational problem sets for contact hours and mission satisfaction.
+- **Modern Full-Stack Architecture:**
+  - **Backend:** FastAPI (Python 3.11+), SQLAlchemy 2.0 (async), PostgreSQL 18 / asyncpg, Google OR-Tools CP-SAT.
+  - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons.
+  - **Deployment:** Docker & Docker Compose containerization with persistent PostgreSQL health checks.
 
-### CP-SAT Optimization Engine
-- Uses **Google OR-Tools** to globally optimize schedules against overlapping visibilities and competing satellite resources.
-- Solves as a constraint programming model prioritizing the maximum possible priority-weighted data-transmission volume.
-- Prevents satellite cross-talk and exact-adjacency overlap dynamically.
+---
 
-### Dynamic Priorities & Guaranteed Emergencies
-- Uses dynamic multi-factor priority scoring based on user-supplied priority, deadline urgency, data freshness, waiting time, and severity.
-- **Mathematical Emergency Precedence:** Verified emergency downlinks are mathematically proven to outrank any possible combination of normal routine requests, using a bounded lexicographic additive bonus. The solver strictly maximizes the *count* of scheduled emergencies before evaluating any routine priority scoring.
+## Quickstart
 
-### Fault-Tolerant Rescheduling
-- The `Rescheduler` supports fast localized rescheduling while strictly locking `active` and `completed` past tasks against mutation.
-- Native **Rollback Mechanism:** The optimization run is isolated inside strict `try...except` and mathematical-boundary limits. If the solver crashes, times out, yields an invalid schedule, or the dataset inherently exceeds a 64-bit bounds check, it safely rolls back to the previous valid schedule and emits a clean failure state without terminating the parent application API.
+### Option A: Local Development Setup
 
-## Repository Structure
-
-- `src/scheduler/models.py`: Data layer and Pydantic validators.
-- `src/scheduler/priority.py`: Dynamic priority scoring and strict objective-coefficient mathematical boundaries.
-- `src/scheduler/validator.py`: Abstracted validator decoupled from solvers to guarantee all final schedule geometries are physically possible.
-- `src/scheduler/cpsat.py`: Google OR-Tools scheduling engine.
-- `src/scheduler/fcfs.py`: Baseline scheduler.
-- `src/scheduler/metrics.py`: Accurate utilization logic and improvement calculations.
-- `src/scheduler/rescheduler.py`: Rolling horizon engine and rollback safety protocol.
-- `tests/`: 58 comprehensive tests covering model constraints, solver safety, strict 64-bit bounding edge cases, mathematical validations, and e2e integrations.
-
-## Execution and Tests
-
-Dependencies: `ortools`, `pydantic`, `pytest`
-
-To execute the test suite locally:
+#### 1. Backend Setup
 ```bash
-python -m pytest -v
+cd backend
+python -m venv .venv
+# On Windows:
+.\.venv\Scripts\activate
+# On Linux/macOS:
+# source .venv/bin/activate
+
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Configure environment variables (.env)
+cp .env.example .env
+
+# Run database migrations
+alembic upgrade head
+
+# Start FastAPI server
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+Backend API will be accessible at: `http://127.0.0.1:8000` (Docs: `http://127.0.0.1:8000/docs`).
+
+#### 2. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Frontend UI will be accessible at: `http://localhost:5173`.
+
+---
+
+### Option B: Docker Compose Setup
+
+Run the entire stack (PostgreSQL + FastAPI + React/Nginx) with a single command:
+
+```bash
+docker compose up --build
 ```
 
-All 58 tests currently run green, fully validating the integrity of the objective space constraints and absolute emergency domination logic.
+- **Frontend Dashboard:** `http://localhost:5173`
+- **Backend API Docs:** `http://localhost:8000/docs`
+- **PostgreSQL Database:** `localhost:5433` (isolated port to prevent conflicts with native local PostgreSQL).
+
+---
+
+## SatNet NASA DSN Benchmark
+
+To execute the standardized benchmark comparing FCFS and CP-SAT against the real NASA SatNet problem set (`W10_2018`):
+
+```bash
+# Ensure satnet dataset is placed under datasets/satnet-master/data/
+python scripts/run_satnet_benchmark.py --week W10_2018 --time-limit 30.0
+```
+
+### Verified Empirical Results (`W10_2018`)
+
+| Metric | FCFS Baseline | OR-Tools CP-SAT | Optimization Delta |
+| :--- | :---: | :---: | :---: |
+| **Solver Status** | `FEASIBLE` | `FEASIBLE` (30s limit) | — |
+| **Independent Validation** | `0 Violations` | `0 Violations` | Clean |
+| **Scheduled Requests** | 214 / 257 | 226 / 257 | **+12 requests (+4.67%)** |
+| **Request Satisfaction Rate** | 83.27% | 87.94% | **+4.67%** |
+| **Scheduled Contact Hours** | 837.30h | 913.88h | **+76.58 contact hours** |
+| **Hours Completion Rate** | 70.27% | 76.70% | **+6.43%** |
+| **Rejected Requests** | 43 requests | 31 requests | **-12 rejections** |
+| **Runtime** | 0.003s | 30.27s | 30s solver limit |
+
+*Full documentation on SatNet constraints, problem schemas, and research citations is available in [docs/SATNET_INTEGRATION.md](docs/SATNET_INTEGRATION.md).*
+
+---
+
+## Testing & Quality Assurance
+
+### Run Backend Unit & Integration Tests (39 Tests)
+```bash
+cd backend
+pytest -v
+```
+
+### Run Frontend Typecheck & Linter
+```bash
+cd frontend
+npx oxlint
+npm run build
+```
+
+---
+
+## Troubleshooting
+
+- **PostgreSQL Port Conflict:** Local PostgreSQL commonly uses port `5432`. The `docker-compose.yml` maps container port `5432` to host port `5433` to prevent collision with any existing local instances.
+- **Missing SatNet Dataset:** If `scripts/run_satnet_benchmark.py` reports missing files, ensure `problems.json` and `maintenance.csv` are in `datasets/satnet-master/data/` or pass `--dataset-dir /path/to/data`.
+- **Database Migrations:** If database tables are out of sync, run `alembic upgrade head` from the `backend/` directory.

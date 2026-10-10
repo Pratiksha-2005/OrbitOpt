@@ -1,0 +1,1527 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OrbitOpt - Autonomous Ground Station Scheduling API",
+    "description": "API for Autonomous Ground Station Scheduling for Multi-Satellite Downlink optimization, conflict resolution, and schedule validation.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Root Health Check",
+        "description": "Verify application and database health.",
+        "operationId": "check_health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Application Health Check",
+        "description": "Returns service availability, timestamp, active environment and database connectivity status.",
+        "operationId": "check_health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets": {
+      "post": {
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Create and validate a scheduling scenario dataset",
+        "description": "Registers a new dataset scenario containing Ground Stations and Satellite Pass opportunities.",
+        "operationId": "create_dataset_api_v1_datasets_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "List all dataset scenarios",
+        "description": "Returns compact summary metadata for all registered datasets.",
+        "operationId": "list_datasets_api_v1_datasets_get",
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DatasetSummary"
+                  },
+                  "title": "Response List Datasets Api V1 Datasets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}": {
+      "get": {
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Retrieve dataset by ID",
+        "description": "Fetches full scenario dataset details including ground stations and contact passes.",
+        "operationId": "get_dataset_api_v1_datasets__dataset_id__get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedules/baseline": {
+      "post": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Execute Baseline FCFS Scheduling",
+        "description": "Runs the baseline First-Come-First-Served scheduling algorithm against the given dataset.",
+        "operationId": "run_baseline_schedule_api_v1_schedules_baseline_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BaselineScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedules/optimize": {
+      "post": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Execute CP-SAT Multi-Satellite Optimization",
+        "description": "Runs the CP-SAT constraint programming optimizer to maximize downlink throughput and priority satisfaction.",
+        "operationId": "run_optimize_schedule_api_v1_schedules_optimize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedules/{run_id}": {
+      "get": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Retrieve Schedule Run Details",
+        "description": "Fetches full allocation timeline, unassigned passes, and summary metrics for a previous run.",
+        "operationId": "get_schedule_run_api_v1_schedules__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedules/{run_id}/metrics": {
+      "get": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Retrieve Schedule Run Metrics",
+        "description": "Retrieves comparative KPIs, priority satisfaction, and ground station utilization metrics for a run.",
+        "operationId": "get_schedule_metrics_api_v1_schedules__run_id__metrics_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlgorithmType": {
+        "type": "string",
+        "enum": [
+          "baseline_fcfs",
+          "cp_sat_optimizer",
+          "mock_integration"
+        ],
+        "title": "AlgorithmType",
+        "description": "Supported scheduling algorithm types."
+      },
+      "BaselineScheduleRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID to execute baseline on"
+          },
+          "setup_time_seconds": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Setup Time Seconds",
+            "description": "Required re-pointing/calibration buffer between passes at the same station (seconds)",
+            "default": 120
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "BaselineScheduleRequest",
+        "description": "Request payload for running FCFS baseline schedule."
+      },
+      "DatasetCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Descriptive name of the scheduling dataset scenario",
+            "examples": [
+              "LEO Constellation 24h Scenario"
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional detailed overview of scenario objectives and constraints",
+            "examples": [
+              "Global multi-satellite downlink scenario across 5 polar and equatorial stations."
+            ]
+          },
+          "ground_stations": {
+            "items": {
+              "$ref": "#/components/schemas/GroundStationCreate"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Ground Stations",
+            "description": "List of ground stations participating in the scenario"
+          },
+          "satellite_passes": {
+            "items": {
+              "$ref": "#/components/schemas/SatellitePassCreate"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Satellite Passes",
+            "description": "List of satellite contact pass opportunities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "ground_stations",
+          "satellite_passes"
+        ],
+        "title": "DatasetCreate",
+        "description": "Schema for creating and registering a scenario dataset."
+      },
+      "DatasetRead": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Unique dataset identifier"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Scenario name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Scenario description"
+          },
+          "ground_station_count": {
+            "type": "integer",
+            "title": "Ground Station Count",
+            "description": "Total ground stations in dataset"
+          },
+          "satellite_pass_count": {
+            "type": "integer",
+            "title": "Satellite Pass Count",
+            "description": "Total satellite passes in dataset"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Creation timestamp in UTC"
+          },
+          "ground_stations": {
+            "items": {
+              "$ref": "#/components/schemas/GroundStationRead"
+            },
+            "type": "array",
+            "title": "Ground Stations"
+          },
+          "satellite_passes": {
+            "items": {
+              "$ref": "#/components/schemas/SatellitePassRead"
+            },
+            "type": "array",
+            "title": "Satellite Passes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "name",
+          "ground_station_count",
+          "satellite_pass_count",
+          "created_at"
+        ],
+        "title": "DatasetRead",
+        "description": "Schema for reading a dataset with full details."
+      },
+      "DatasetSummary": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "ground_station_count": {
+            "type": "integer",
+            "title": "Ground Station Count"
+          },
+          "satellite_pass_count": {
+            "type": "integer",
+            "title": "Satellite Pass Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "name",
+          "ground_station_count",
+          "satellite_pass_count",
+          "created_at"
+        ],
+        "title": "DatasetSummary",
+        "description": "Compact summary of a dataset for list views."
+      },
+      "GroundStationCreate": {
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Station Id",
+            "description": "Unique identifier for the ground station (e.g. 'GS-SVALBARD')",
+            "examples": [
+              "GS-SVALBARD"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Human-readable ground station location/name",
+            "examples": [
+              "Svalbard Ground Station"
+            ]
+          },
+          "latitude_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude Deg",
+            "description": "Latitude in degrees [-90.0, 90.0]",
+            "examples": [
+              78.2297
+            ]
+          },
+          "longitude_deg": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude Deg",
+            "description": "Longitude in degrees [-180.0, 180.0]",
+            "examples": [
+              15.4077
+            ]
+          },
+          "elevation_mask_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": 0.0,
+            "title": "Elevation Mask Deg",
+            "description": "Minimum horizon elevation angle in degrees for contact visibility [0.0, 90.0]",
+            "default": 5.0,
+            "examples": [
+              5.0
+            ]
+          },
+          "max_concurrent_passes": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Max Concurrent Passes",
+            "description": "Maximum concurrent satellite passes supported by this ground station (e.g., number of antennas)",
+            "default": 1,
+            "examples": [
+              1
+            ]
+          },
+          "supported_bands": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Bands",
+            "description": "Radio frequency bands supported by the ground station antennas",
+            "examples": [
+              [
+                "S-band",
+                "X-band",
+                "Ka-band"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_id",
+          "name",
+          "latitude_deg",
+          "longitude_deg"
+        ],
+        "title": "GroundStationCreate",
+        "description": "Schema for ground station creation input."
+      },
+      "GroundStationRead": {
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Station Id",
+            "description": "Unique identifier for the ground station (e.g. 'GS-SVALBARD')",
+            "examples": [
+              "GS-SVALBARD"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Human-readable ground station location/name",
+            "examples": [
+              "Svalbard Ground Station"
+            ]
+          },
+          "latitude_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude Deg",
+            "description": "Latitude in degrees [-90.0, 90.0]",
+            "examples": [
+              78.2297
+            ]
+          },
+          "longitude_deg": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude Deg",
+            "description": "Longitude in degrees [-180.0, 180.0]",
+            "examples": [
+              15.4077
+            ]
+          },
+          "elevation_mask_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": 0.0,
+            "title": "Elevation Mask Deg",
+            "description": "Minimum horizon elevation angle in degrees for contact visibility [0.0, 90.0]",
+            "default": 5.0,
+            "examples": [
+              5.0
+            ]
+          },
+          "max_concurrent_passes": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Max Concurrent Passes",
+            "description": "Maximum concurrent satellite passes supported by this ground station (e.g., number of antennas)",
+            "default": 1,
+            "examples": [
+              1
+            ]
+          },
+          "supported_bands": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Bands",
+            "description": "Radio frequency bands supported by the ground station antennas",
+            "examples": [
+              [
+                "S-band",
+                "X-band",
+                "Ka-band"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_id",
+          "name",
+          "latitude_deg",
+          "longitude_deg"
+        ],
+        "title": "GroundStationRead",
+        "description": "Schema for ground station retrieval response."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Operational status, e.g. 'healthy'"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Application semantic version"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp",
+            "description": "Current UTC timestamp"
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment",
+            "description": "Active environment name (e.g. development, production)"
+          },
+          "database_connected": {
+            "type": "boolean",
+            "title": "Database Connected",
+            "description": "True if database connectivity is verified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "environment",
+          "database_connected"
+        ],
+        "title": "HealthResponse",
+        "description": "Health check endpoint response payload."
+      },
+      "OptimizeScheduleRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID to optimize"
+          },
+          "time_limit_seconds": {
+            "type": "number",
+            "maximum": 300.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Time Limit Seconds",
+            "description": "Maximum solver execution time limit in seconds",
+            "default": 30.0
+          },
+          "setup_time_seconds": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Setup Time Seconds",
+            "description": "Antenna slew and re-configuration buffer time in seconds",
+            "default": 120
+          },
+          "priority_weights": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority Weights",
+            "description": "Custom weights assigned to priority levels 1-5 (1=Highest priority)"
+          },
+          "maximize_data_volume": {
+            "type": "boolean",
+            "title": "Maximize Data Volume",
+            "description": "Whether objective function prioritizes total downlinked data volume alongside pass count",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "OptimizeScheduleRequest",
+        "description": "Request payload for running CP-SAT optimization."
+      },
+      "SatellitePassCreate": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Pass Id",
+            "description": "Unique identifier for the pass opportunity (e.g. 'PASS-SAT01-001')",
+            "examples": [
+              "PASS-SAT01-001"
+            ]
+          },
+          "satellite_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Satellite Id",
+            "description": "Satellite identifier (e.g. 'SAT-EARTHOBS-1')",
+            "examples": [
+              "SAT-EARTHOBS-1"
+            ]
+          },
+          "ground_station_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Ground Station Id",
+            "description": "Target Ground Station ID for this contact window",
+            "examples": [
+              "GS-SVALBARD"
+            ]
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Time",
+            "description": "Pass start timestamp in UTC (ISO 8601)",
+            "examples": [
+              "2026-10-10T08:00:00Z"
+            ]
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Time",
+            "description": "Pass end timestamp in UTC (ISO 8601)",
+            "examples": [
+              "2026-10-10T08:12:00Z"
+            ]
+          },
+          "max_elevation_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": 0.0,
+            "title": "Max Elevation Deg",
+            "description": "Maximum elevation angle during the pass in degrees [0.0, 90.0]",
+            "examples": [
+              48.5
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "description": "Priority of the pass (1 = Highest Priority, 5 = Lowest Priority)",
+            "default": 3,
+            "examples": [
+              1
+            ]
+          },
+          "data_volume_gb": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Data Volume Gb",
+            "description": "Pending/transferable data volume in Gigabytes (GB) available for downlink",
+            "default": 0.0,
+            "examples": [
+              42.5
+            ]
+          },
+          "pending_data_gb": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Data Gb",
+            "description": "Explicit pending data volume on satellite in GB (alias for data_volume_gb)",
+            "examples": [
+              42.5
+            ]
+          },
+          "effective_data_rate_mbps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Data Rate Mbps",
+            "description": "Effective transmission data rate in Mbps (used for transferable data computation: transferable = min(pending, rate * duration / 8000))",
+            "examples": [
+              150.0
+            ]
+          },
+          "required_bandwidth_mbps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Bandwidth Mbps",
+            "description": "Required downlink bandwidth in Mbps (alias for effective_data_rate_mbps)",
+            "examples": [
+              150.0
+            ]
+          },
+          "channel_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Band",
+            "description": "Frequency band required for communication (e.g., 'X-band', 'S-band')",
+            "default": "X-band",
+            "examples": [
+              "X-band"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "satellite_id",
+          "ground_station_id",
+          "start_time",
+          "end_time",
+          "max_elevation_deg"
+        ],
+        "title": "SatellitePassCreate",
+        "description": "Pass creation schema."
+      },
+      "SatellitePassRead": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Pass Id",
+            "description": "Unique identifier for the pass opportunity (e.g. 'PASS-SAT01-001')",
+            "examples": [
+              "PASS-SAT01-001"
+            ]
+          },
+          "satellite_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Satellite Id",
+            "description": "Satellite identifier (e.g. 'SAT-EARTHOBS-1')",
+            "examples": [
+              "SAT-EARTHOBS-1"
+            ]
+          },
+          "ground_station_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Ground Station Id",
+            "description": "Target Ground Station ID for this contact window",
+            "examples": [
+              "GS-SVALBARD"
+            ]
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Time",
+            "description": "Pass start timestamp in UTC (ISO 8601)",
+            "examples": [
+              "2026-10-10T08:00:00Z"
+            ]
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Time",
+            "description": "Pass end timestamp in UTC (ISO 8601)",
+            "examples": [
+              "2026-10-10T08:12:00Z"
+            ]
+          },
+          "max_elevation_deg": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": 0.0,
+            "title": "Max Elevation Deg",
+            "description": "Maximum elevation angle during the pass in degrees [0.0, 90.0]",
+            "examples": [
+              48.5
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "description": "Priority of the pass (1 = Highest Priority, 5 = Lowest Priority)",
+            "default": 3,
+            "examples": [
+              1
+            ]
+          },
+          "data_volume_gb": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Data Volume Gb",
+            "description": "Pending/transferable data volume in Gigabytes (GB) available for downlink",
+            "default": 0.0,
+            "examples": [
+              42.5
+            ]
+          },
+          "pending_data_gb": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Data Gb",
+            "description": "Explicit pending data volume on satellite in GB (alias for data_volume_gb)",
+            "examples": [
+              42.5
+            ]
+          },
+          "effective_data_rate_mbps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Data Rate Mbps",
+            "description": "Effective transmission data rate in Mbps (used for transferable data computation: transferable = min(pending, rate * duration / 8000))",
+            "examples": [
+              150.0
+            ]
+          },
+          "required_bandwidth_mbps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Bandwidth Mbps",
+            "description": "Required downlink bandwidth in Mbps (alias for effective_data_rate_mbps)",
+            "examples": [
+              150.0
+            ]
+          },
+          "channel_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Band",
+            "description": "Frequency band required for communication (e.g., 'X-band', 'S-band')",
+            "default": "X-band",
+            "examples": [
+              "X-band"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "satellite_id",
+          "ground_station_id",
+          "start_time",
+          "end_time",
+          "max_elevation_deg"
+        ],
+        "title": "SatellitePassRead",
+        "description": "Pass response schema."
+      },
+      "ScheduleMetrics": {
+        "properties": {
+          "total_passes": {
+            "type": "integer",
+            "title": "Total Passes",
+            "description": "Total input contact opportunities"
+          },
+          "scheduled_passes_count": {
+            "type": "integer",
+            "title": "Scheduled Passes Count",
+            "description": "Number of successfully scheduled passes"
+          },
+          "unassigned_passes_count": {
+            "type": "integer",
+            "title": "Unassigned Passes Count",
+            "description": "Number of unassigned/dropped passes"
+          },
+          "scheduled_percentage": {
+            "type": "number",
+            "title": "Scheduled Percentage",
+            "description": "Percentage of passes scheduled [0.0 - 100.0]"
+          },
+          "total_data_downlinked_gb": {
+            "type": "number",
+            "title": "Total Data Downlinked Gb",
+            "description": "Total data volume scheduled for downlink in GB"
+          },
+          "total_pending_data_gb": {
+            "type": "number",
+            "title": "Total Pending Data Gb",
+            "description": "Total pending data volume across all input passes in GB",
+            "default": 0.0
+          },
+          "total_contact_time_seconds": {
+            "type": "number",
+            "title": "Total Contact Time Seconds",
+            "description": "Total scheduled contact duration in seconds"
+          },
+          "objective_value": {
+            "type": "number",
+            "title": "Objective Value",
+            "description": "Agreed optimization objective: sum of priority weight multiplied by transferable data (GB) for all scheduled passes"
+          },
+          "priority_satisfaction_rate": {
+            "type": "number",
+            "title": "Priority Satisfaction Rate",
+            "description": "Weighted priority satisfaction score [0.0 - 100.0]"
+          },
+          "priority_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Priority Breakdown",
+            "description": "Count of scheduled passes grouped by priority level (e.g., {'1': 5, '2': 3})"
+          },
+          "ground_station_utilization": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Ground Station Utilization",
+            "description": "Utilization percentage per ground station [0.0 - 100.0]"
+          },
+          "conflicts_detected": {
+            "type": "integer",
+            "title": "Conflicts Detected",
+            "description": "Number of ground station or antenna temporal conflicts detected/resolved",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_passes",
+          "scheduled_passes_count",
+          "unassigned_passes_count",
+          "scheduled_percentage",
+          "total_data_downlinked_gb",
+          "total_contact_time_seconds",
+          "objective_value",
+          "priority_satisfaction_rate"
+        ],
+        "title": "ScheduleMetrics",
+        "description": "Comparative and operational metrics calculated for a scheduling run."
+      },
+      "ScheduleRunResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id",
+            "description": "Unique identifier of this scheduling run"
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "ID of the dataset evaluated"
+          },
+          "algorithm": {
+            "$ref": "#/components/schemas/AlgorithmType",
+            "description": "Algorithm used for this run"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScheduleStatus",
+            "description": "Execution status"
+          },
+          "is_mock": {
+            "type": "boolean",
+            "title": "Is Mock",
+            "description": "Flag indicating if results were generated by the integration mock boundary rather than Developer 1's solver",
+            "default": false
+          },
+          "is_valid": {
+            "type": "boolean",
+            "title": "Is Valid",
+            "description": "Independent schedule validation flag (True if conflict-free and setup-time compliant)",
+            "default": true
+          },
+          "validation_violations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Validation Violations",
+            "description": "List of detected schedule violations from the independent validator (empty if valid)"
+          },
+          "solver_status_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solver Status Detail",
+            "description": "Detailed CP-SAT solver status (e.g., 'OPTIMAL', 'FEASIBLE', 'INFEASIBLE', 'MODEL_INVALID')"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Timestamp when schedule was run in UTC"
+          },
+          "execution_time_ms": {
+            "type": "number",
+            "title": "Execution Time Ms",
+            "description": "Algorithm execution time in milliseconds"
+          },
+          "scheduled_passes": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduledPass"
+            },
+            "type": "array",
+            "title": "Scheduled Passes",
+            "description": "Allocated passes"
+          },
+          "unassigned_passes": {
+            "items": {
+              "$ref": "#/components/schemas/UnassignedPass"
+            },
+            "type": "array",
+            "title": "Unassigned Passes",
+            "description": "Unallocated passes"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/ScheduleMetrics",
+            "description": "KPI and summary metrics for this run"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "dataset_id",
+          "algorithm",
+          "status",
+          "created_at",
+          "execution_time_ms",
+          "metrics"
+        ],
+        "title": "ScheduleRunResponse",
+        "description": "Standardized response schema for scheduling runs."
+      },
+      "ScheduleStatus": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "failed",
+          "running",
+          "infeasible",
+          "timeout"
+        ],
+        "title": "ScheduleStatus",
+        "description": "Execution status of a scheduling run."
+      },
+      "ScheduledPass": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id",
+            "description": "Unique ID of the scheduled pass"
+          },
+          "satellite_id": {
+            "type": "string",
+            "title": "Satellite Id",
+            "description": "Satellite identifier"
+          },
+          "ground_station_id": {
+            "type": "string",
+            "title": "Ground Station Id",
+            "description": "Ground station assigned"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Time",
+            "description": "Pass start time in UTC"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Time",
+            "description": "Pass end time in UTC"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "title": "Duration Seconds",
+            "description": "Contact duration in seconds"
+          },
+          "data_volume_gb": {
+            "type": "number",
+            "title": "Data Volume Gb",
+            "description": "Downlinked data volume in GB"
+          },
+          "transferable_data_gb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transferable Data Gb",
+            "description": "Transferable data in GB: min(pending_data, effective_data_rate * duration)"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "description": "Pass priority level [1-5]"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "satellite_id",
+          "ground_station_id",
+          "start_time",
+          "end_time",
+          "duration_seconds",
+          "data_volume_gb",
+          "priority"
+        ],
+        "title": "ScheduledPass",
+        "description": "Allocated pass in the scheduled timeline."
+      },
+      "UnassignedPass": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id",
+            "description": "Unique ID of the unassigned pass"
+          },
+          "satellite_id": {
+            "type": "string",
+            "title": "Satellite Id",
+            "description": "Satellite identifier"
+          },
+          "ground_station_id": {
+            "type": "string",
+            "title": "Ground Station Id",
+            "description": "Conflicted Ground station"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Time",
+            "description": "Pass start time in UTC"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Time",
+            "description": "Pass end time in UTC"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "description": "Pass priority level"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Explanation why the pass could not be scheduled (e.g., 'Station overlap with PASS-001')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "satellite_id",
+          "ground_station_id",
+          "start_time",
+          "end_time",
+          "priority",
+          "reason"
+        ],
+        "title": "UnassignedPass",
+        "description": "Details of a pass that could not be scheduled due to conflicts or constraints."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
