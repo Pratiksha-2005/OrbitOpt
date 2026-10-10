@@ -93,6 +93,16 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
 
   return (
     <div className="space-y-4">
+      <style>{`
+        @keyframes slideInBlock {
+          0% { opacity: 0; transform: scaleX(0); transform-origin: left; }
+          100% { opacity: 1; transform: scaleX(1); transform-origin: left; }
+        }
+        .animate-gantt-block {
+          opacity: 0;
+          animation: slideInBlock 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
       {/* Timeline Controls & Legend */}
       <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -206,11 +216,12 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
                           onMouseLeave={() => setHoveredPassId(null)}
                           className={`absolute h-10 rounded-lg border bg-gradient-to-r ${getPriorityColor(
                             p.priority
-                          )} px-2 py-1 text-[11px] font-mono cursor-pointer transition-all flex flex-col justify-center shadow-md select-none ${isHovered ? 'ring-2 ring-cyan-300 z-20 scale-[1.02]' : 'z-10'
+                          )} px-2 py-1 text-[11px] font-mono cursor-pointer transition-all flex flex-col justify-center shadow-md select-none animate-gantt-block ${isHovered ? 'ring-2 ring-cyan-300 z-20 scale-[1.02] shadow-lg' : 'z-10'
                             }`}
                           style={{
                             left: `${leftPercent}%`,
                             width: `${widthPercent}%`,
+                            animationDelay: `${Math.random() * 0.4 + 0.1}s`,
                           }}
                         >
                           <div className="truncate font-bold flex items-center gap-1">

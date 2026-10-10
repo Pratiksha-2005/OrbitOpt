@@ -94,12 +94,14 @@ export const runBaseline = async (
 export const runOptimize = async (
   datasetId: string,
   timeLimitSeconds = 30.0,
+  setupTimeSeconds = 120,
   priorityWeights?: Record<string, number>,
   maximizeDataVolume = true
 ): Promise<ScheduleRunResponse> => {
   const response = await apiClient.post<ScheduleRunResponse>('/schedules/optimize', {
     dataset_id: datasetId,
     time_limit_seconds: timeLimitSeconds,
+    setup_time_seconds: setupTimeSeconds,
     priority_weights: priorityWeights || {
       '1': 10.0,
       '2': 5.0,
