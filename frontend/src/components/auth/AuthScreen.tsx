@@ -38,6 +38,7 @@ export const AuthScreen: React.FC = () => {
         setSuccessMessage('Password reset email sent! Check your inbox.');
       }
     } catch (err) {
+      console.error(err);
       // Error is handled in AuthContext
     } finally {
       setIsLoading(false);
@@ -50,6 +51,7 @@ export const AuthScreen: React.FC = () => {
     try {
       await signInWithGoogle();
     } catch (err) {
+      console.error(err);
       // Error is handled in AuthContext
     } finally {
       setIsLoading(false);

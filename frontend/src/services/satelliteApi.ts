@@ -70,6 +70,7 @@ const parseTLEData = (tleData: string): LiveSatellite[] => {
         });
       }
     } catch (err) {
+      console.warn("Failed to propagate satellite:", err);
       // Skip satellites that fail to propagate
     }
   }

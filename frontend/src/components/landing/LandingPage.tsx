@@ -4,6 +4,8 @@ import { LandingHowItWorks } from './LandingHowItWorks';
 import { LandingFeatures } from './LandingFeatures';
 import { Satellite } from 'lucide-react';
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 interface LandingPageProps {
   onNavigateToAuth: () => void;
 }
@@ -56,7 +58,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToAuth }) =>
       {/* Footer */}
       <footer className="border-t border-slate-800 bg-[#04060b] py-8 text-center text-sm text-slate-500">
         <div className="max-w-7xl mx-auto px-4">
-          <p>&copy; {new Date().getFullYear()} OrbitOpt. All rights reserved.</p>
+          <p>&copy; {CURRENT_YEAR} OrbitOpt. All rights reserved.</p>
         </div>
       </footer>
     </div>

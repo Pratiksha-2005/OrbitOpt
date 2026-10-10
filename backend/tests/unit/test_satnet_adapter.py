@@ -29,6 +29,7 @@ def data_dir() -> str:
 
 
 class TestSatNetInspector:
+    @pytest.mark.dataset_dependent
     def test_inspector_validation_and_stats(self, data_dir: str):
         inspector = SatNetInspector(data_dir=data_dir)
         report = inspector.inspect_week("W10_2018")
@@ -52,6 +53,7 @@ class TestSatNetInspector:
         with pytest.raises(FileNotFoundError):
             inspector.load_problems()
 
+    @pytest.mark.dataset_dependent
     def test_unknown_week_raises_error(self, data_dir: str):
         inspector = SatNetInspector(data_dir=data_dir)
         with pytest.raises(KeyError):
@@ -68,6 +70,7 @@ class TestSatNetAdapter:
         epoch_w1 = get_week_epoch_start(1, 2018)
         assert epoch_w1 == datetime(2018, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
+    @pytest.mark.dataset_dependent
     def test_load_scenario_w10(self, data_dir: str):
         adapter = SatNetAdapter(data_dir=data_dir)
         scenario = adapter.load_scenario("W10_2018")
@@ -281,6 +284,7 @@ class TestSatNetValidatorAndSolvers:
         assert len(violations) > 0
         assert any("scheduled multiple times" in v for v in violations)
 
+    @pytest.mark.dataset_dependent
     def test_reproducible_fcfs_on_real_w10(self, data_dir: str):
         adapter = SatNetAdapter(data_dir=data_dir)
         scenario = adapter.load_scenario("W10_2018")

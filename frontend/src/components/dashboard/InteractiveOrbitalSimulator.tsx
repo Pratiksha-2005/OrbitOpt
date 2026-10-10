@@ -19,8 +19,9 @@ export const InteractiveOrbitalSimulator: React.FC<SimulatorProps> = ({
   const passes = activeDataset.satellite_passes || [];
   const scheduledPassIds = new Set(activeRun?.scheduled_passes.map(p => p.pass_id) || []);
   
-  const minTime = passes.length ? Math.min(...passes.map(p => new Date(p.start_time).getTime())) : Date.now();
-  const maxTime = passes.length ? Math.max(...passes.map(p => new Date(p.end_time).getTime())) : Date.now() + 3600000;
+  const [fallbackNow] = React.useState(() => Date.now());
+  const minTime = passes.length ? Math.min(...passes.map(p => new Date(p.start_time).getTime())) : fallbackNow;
+  const maxTime = passes.length ? Math.max(...passes.map(p => new Date(p.end_time).getTime())) : fallbackNow + 3600000;
   
   const [simTimeMs, setSimTimeMs] = useState(minTime - 5 * 60 * 1000);
   const [isPlaying, setIsPlaying] = useState(true);

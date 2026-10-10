@@ -34,3 +34,6 @@ addopts = "-ra -q --import-mode=importlib"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["app", "."]
+markers = [
+    "dataset_dependent: mark test as requiring the external SatNet dataset",
+]

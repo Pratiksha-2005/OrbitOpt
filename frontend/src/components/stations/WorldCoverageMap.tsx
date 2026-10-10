@@ -86,6 +86,7 @@ export const WorldCoverageMap: React.FC<WorldCoverageMapProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // eslint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (activeStationId) {
       setLocalActiveStationId(activeStationId);
@@ -106,6 +107,7 @@ export const WorldCoverageMap: React.FC<WorldCoverageMapProps> = ({
     setIsLoading(false);
   };
 
+  // eslint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     fetchSats();
   }, []);

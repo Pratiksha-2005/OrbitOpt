@@ -34,7 +34,7 @@ jobs:
       - name: Run Backend Regression & SatNet Unit Tests
         working-directory: ./backend
         run: |
-          pytest -v --tb=short
+          pytest -v --tb=short -m "not dataset_dependent"
 
   frontend-qa:
     name: Frontend Lint & Production Build

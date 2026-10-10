@@ -198,7 +198,7 @@ export const App: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [selectedDatasetId, isBackendConnected, setupTimeSeconds, timeLimitSeconds]);
+  }, [selectedDatasetId, activeDataset, isBackendConnected, setupTimeSeconds, timeLimitSeconds]);
 
   /**
    * Execute Baseline FCFS Scheduling
